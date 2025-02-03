@@ -1,0 +1,12 @@
+<template>
+  <q-btn
+    @click="$emit('clickLoginBtn')"
+    round
+    dense
+    flat
+    color="white"
+    icon="login"
+  >
+    <q-tooltip>Login</q-tooltip>
+  </q-btn>
+</template>

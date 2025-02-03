@@ -1,0 +1,142 @@
+apiVersion: v0.1
+workloads:
+  Ankaios_Dashboard:
+    runtime: podman
+    agent: agent_A
+    restart: true
+    updateStrategy: AT_LEAST_ONCE
+    accessRights:
+      allow: []
+      deny: []
+    restartPolicy: NEVER 
+    dependencies:
+    runtimeConfig: |
+       image: dashboard:0.0
+       commandOptions: ["-p", "5001:5001", "-e", "PASSWORD=admin"]
+    controlInterfaceAccess:
+        allowRules:
+          - type: StateRule
+            operation: ReadWrite
+            filterMask:
+              - "desiredState"
+              - "workloadStates"
+
+  Automatic_Climate_Control:
+    runtime: podman
+    agent: agent_A
+    restart: true
+    updateStrategy: AT_LEAST_ONCE
+    accessRights:
+      allow: []
+      deny: []
+    restartPolicy: NEVER
+    tags:
+      - key: Started by
+        value: Front Passenger
+      - key: Running in
+        value: AC Unit
+    dependencies:
+      Ankaios_Dashboard: ADD_COND_FAILED
+    runtimeConfig: |
+      image: dashboard:0.0
+      commandOptions: ["-p", "5002:5001", "-e", "PASSWORD=admin"]
+  
+  Navigation:
+    runtime: podman
+    agent: agent_B
+    restart: true
+    updateStrategy: AT_LEAST_ONCE
+    accessRights:
+      allow: []
+      deny: []
+    restartPolicy: NEVER
+    tags:
+      - key: Started by
+        value: Front Passenger
+      - key: Running in
+        value: Infotainment
+    dependencies:
+      Infotainment_Screen_On: ADD_COND_RUNNING
+    runtimeConfig: |
+      image: dashboard:0.0
+      commandOptions: ["-p", "5003:5001", "-e", "PASSWORD=admin"]
+
+  Smartphone_Music_Streaming:
+    runtime: podman
+    agent: agent_C
+    restart: true
+    updateStrategy: AT_LEAST_ONCE
+    accessRights:
+      allow: []
+      deny: []
+    restartPolicy: NEVER
+    dependencies:
+      Smartphone_Bluetooth_Connection: ADD_COND_RUNNING
+    tags:
+      - key: Started by
+        value: Rear Passenger
+      - key: Running in
+        value: Infotainment
+    runtimeConfig: |
+      image: dashboard:0.0
+      commandOptions: ["-p", "5004:5001", "-e", "PASSWORD=admin"]
+
+  EV_Charging_Error:
+    runtime: podman
+    agent: agent_B
+    restart: true
+    updateStrategy: AT_LEAST_ONCE
+    accessRights:
+      allow: []
+      deny: []
+    restartPolicy: NEVER
+    dependencies:
+      EV_Charging_Start: ADD_COND_FAILED
+      Infotainment_Screen_On: ADD_COND_RUNNING
+    tags:
+      - key: Started by
+        value: Charging Circuit
+      - key: Running in
+        value: Instrument Cluster
+    runtimeConfig: |
+      image: dashboard:0.0
+      commandOptions: ["-p", "5005:5001", "-e", "PASSWORD=admin"]
+
+  EV_Charging_Start:
+    runtime: podman
+    agent: agent_C
+    restart: true
+    updateStrategy: AT_LEAST_ONCE
+    accessRights:
+      allow: []
+      deny: []
+    restartPolicy: NEVER
+    dependencies:
+    commandArgs: [ "-c", "sleep 10; exit 1" ]
+    tags:
+      - key: Started by
+        value: Charging Circuit
+      - key: Running in
+        value: Instrument Cluster
+    runtimeConfig: |
+      image: dashboard:0.0
+      commandOptions: ["-p", "5006:5001", "-e", "PASSWORD=admin"]
+
+  Infotainment_Screen_On:
+    runtime: podman
+    agent: agent_C
+    restart: true
+    updateStrategy: AT_LEAST_ONCE
+    accessRights:
+      allow: []
+      deny: []
+    restartPolicy: NEVER
+    dependencies:
+    tags:
+      - key: Started by
+        value: Driver
+      - key: Running in
+        value: Instrument Cluster
+    runtimeConfig: |
+      image: dashboard:0.0
+      commandOptions: ["-p", "5007:5001", "-e", "PASSWORD=admin"]
