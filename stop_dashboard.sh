@@ -10,4 +10,5 @@ echo "OK."
 echo "Cleaning up podman..."
 podman stop -a >/dev/null 2>&1
 podman rm -a >/dev/null 2>&1
+podman image prune --force
 echo "OK."

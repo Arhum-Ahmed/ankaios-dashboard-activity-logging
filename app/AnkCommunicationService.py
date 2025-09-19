@@ -33,11 +33,11 @@ class AnkCommunicationService:
         if "controlInterfaceAccess" in json:
             if "allowRules" in json["controlInterfaceAccess"]:
                 for rule in json["controlInterfaceAccess"]["allowRules"]:
-                    workload_builder.add_allow_rule(rule["operation"], rule["filterMask"])
+                    workload_builder.add_allow_state_rule(rule["operation"], rule["filterMask"])
 
             if "denyRules" in json["controlInterfaceAccess"]:
                 for rule in json["controlInterfaceAccess"]["denyRules"]:
-                    workload_builder.add_deny_rule(rule["operation"], rule["filterMask"])
+                    workload_builder.add_deny_state_rule(rule["operation"], rule["filterMask"])
 
         # map strings to enum type of ank_base.proto
         if "dependencies" in json and "dependencies" in json["dependencies"]:
@@ -53,6 +53,20 @@ class AnkCommunicationService:
         complete_state = self.ankaios.get_state(timeout=5, field_masks=["desiredState", "workloadStates"]).to_dict()
         
         return complete_state
+    
+    def get_write_access(self):        
+        write_access = {"writeAccess": True}
+
+        try:
+            workload = Workload.builder().workload_name("access_test").agent_name("access_test_agent").runtime("podman").runtime_config("").restart_policy("NEVER").build()
+            self.ankaios.apply_workload(workload)
+            self.ankaios.delete_workload("access_test")
+        except AnkaiosException as e:
+            print("Ankaios exception: ", e)
+            if "Access denied" in str(e):
+                write_access = {"writeAccess": False}
+        
+        return write_access
     
     def add_new_workload(self, json):
         workload = self.map_json_to_workload(json)

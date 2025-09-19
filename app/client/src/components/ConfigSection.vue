@@ -4,8 +4,8 @@
             <q-input v-model="runtimeConfig" class="full-width-item" :input-style="{ fontSize: '14px' }" filled autogrow label="Runtime Config" :readonly="!readonly" />
         </div>
         <div class="row justify-end" style="margin-top: 5px;">
-            <q-toggle v-model="readonly" style="margin-right: 10px;" label="Edit"/>
-            <q-btn icon="save" color="secondary" @click="applyConfig" />
+            <q-toggle v-model="readonly" style="margin-right: 10px;" label="Edit" :disable="!ankaiosWriteAccess"/>
+            <q-btn icon="save" color="secondary" @click="applyConfig" :disable="!ankaiosWriteAccess"/>
         </div>
     </div>
 </template>
@@ -14,7 +14,7 @@
 import { ref } from 'vue'
 
 export default {
-    props: ['workload'],
+    props: ['workload', 'ankaiosWriteAccess'],
     data() {
         return {
             readonly: ref(false),
@@ -29,7 +29,7 @@ export default {
               controlInterfaceAccess = this.workload.controlInterfaceAccess;
             }
             const requestOptions = {
-                method: 'POST',
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     workloadName: this.workload.workloadName,

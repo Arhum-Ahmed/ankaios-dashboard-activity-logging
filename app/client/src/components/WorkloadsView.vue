@@ -19,6 +19,7 @@
           :allWorkloads="workloads"
           :dependencies="dependencies"
           :sections-toggle-state="sectionsToggleState"
+          :ankaiosWriteAccess="ankaiosWriteAccess"
           @update:section-toggle-state="updateSectionToggleState" />
       </div>
     </div>
@@ -50,6 +51,7 @@ export default {
       options: ["all", "running", "pending", "failed", "succeeded", "stopping"],
       currentPage: 1,
       pageSize: 9,
+      ankaiosWriteAccess: false,
     }
   },
   methods: {
@@ -143,6 +145,28 @@ export default {
             const keys = Object.keys(execState);
             const lastKey = keys[keys.length - 1];
             return lastKey;
+    },
+    setWriteAccess() {
+      fetch('/writeAccess')
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            }
+        })
+        .then(json => {
+            console.log("Received write access data:", json);
+
+            if (json && typeof json.writeAccess !== 'undefined') {
+                this.ankaiosWriteAccess = json.writeAccess;
+            } else {
+                console.log("writeAccess flag missing in server response.");
+                this.ankaiosWriteAccess = false;
+            }
+        })
+        .catch((error) => {
+            console.log('There has been a problem with the fetch operation: ', error.message);
+            this.ankaiosWriteAccess = false;
+        });
     }
   },
   computed: {
@@ -196,9 +220,10 @@ export default {
     },
   },
   mounted() {
+    this.setWriteAccess();
     this.timer = setInterval(() => {
       this.loadState();
-    }, 2000)
+    }, 2000);
   },
   beforeUnmount() {
     clearInterval(this.timer)

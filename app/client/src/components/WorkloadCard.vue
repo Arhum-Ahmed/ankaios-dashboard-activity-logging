@@ -45,7 +45,7 @@
 
           <q-card-section v-if="currentSection === 'config'">
 
-              <ConfigSection :workload="workload" />
+              <ConfigSection :workload="workload" :ankaiosWriteAccess="ankaiosWriteAccess"/>
 
           </q-card-section>
 
@@ -71,7 +71,7 @@
 import ConfigSection from './ConfigSection.vue'
 
 export default {
-    props: ['workload', 'dependencies', 'allWorkloads', 'sectionsToggleState'],
+    props: ['workload', 'dependencies', 'allWorkloads', 'sectionsToggleState', 'ankaiosWriteAccess'],
     data() {
         return {
             confirm: false,

@@ -96,11 +96,15 @@ def delete_workloads():
     print(ank_comm_service.deleteWorkloads(request.json))
     return Response("Workloads deleted.", status=200, mimetype='application/json')
 
-@dashboard.route('/updateConfig', methods=['POST'])
+@dashboard.route('/updateConfig', methods=['PUT'])
 @login_required
 def update_config():
     print(ank_comm_service.update_config(request.json))
     return Response("Workloads deleted.", status=200, mimetype='application/json')
+
+@dashboard.route('/writeAccess', methods=['GET'])
+def get_write_access():
+    return ank_comm_service.get_write_access()
 
 def run(ip="0.0.0.0", p="5001"):
     logger.info(f"Starting the dashboard api ...")
