@@ -51,7 +51,7 @@
                 :key="tag.key"
                 class="q-mr-xs"
                 color="primary"
-                :label="tag.value"
+                :label="`${tag.key}=${tag.value}`"
               />
             </span>
           </q-td>
