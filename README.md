@@ -11,6 +11,7 @@ The ankaios dashboard is started as a workload within the ankaios cluster. More 
 | v0.1, v0.1.1      | v0.3                |
 | v0.2              | v0.4                |
 | v0.3, v0.3.1      | v0.5                |
+| v0.6.0            | v0.6.0              |
 
 </center>
 
@@ -25,7 +26,7 @@ Add the following entry to your startupState.yaml for ankaios and you are ready 
    workloads:
      Ankaios_Dashboard:
        runtime: podman
-       agent: agent_A
+       agent: [AGENT_NAME]
        restart: true
        updateStrategy: AT_LEAST_ONCE
        accessRights:
@@ -34,7 +35,7 @@ Add the following entry to your startupState.yaml for ankaios and you are ready 
        restartPolicy: NEVER 
        dependencies:
        runtimeConfig: |
-          image: ghcr.io/felixmoelders/ankaios-dashboard:latest
+          image: ghcr.io/eclipse-ankaios-dashboard/ankaios-dashboard:latest
           commandOptions: ["-p", "5001:5001"]
        controlInterfaceAccess:
            allowRules:
@@ -102,3 +103,4 @@ Run the following command to see the Ankaios agent logs:
    ```shell
    tail -f /tmp/ankaios-agent_A.log
    ```
+
