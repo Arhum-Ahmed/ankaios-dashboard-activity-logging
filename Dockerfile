@@ -1,32 +1,27 @@
-FROM docker.io/alpine:3.18.4 as base
-RUN apk update 
-RUN apk add --update-cache python3 
-RUN rm -rf /var/cache/apk/*
-RUN python3 -m ensurepip 
-RUN pip3 install protobuf==3.20.2 
-RUN pip3 install Flask 
-RUN pip3 install flask-login
-RUN pip3 install ankaios-sdk
+FROM docker.io/alpine:3.18.4 AS base
+RUN apk update \
+    && apk add --update-cache python3 \
+    && python3 -m ensurepip \
+    && pip3 install --no-cache-dir protobuf Flask flask-login ankaios-sdk \
+    && apk add --no-cache nodejs npm yarn \
+    && npm install -g @quasar/cli \
+    && rm -rf /var/cache/apk/*
 
-RUN apk add nodejs npm yarn 
-
-RUN npm install -g @quasar/cli
-
-FROM base as dev
-
-RUN apk update && apk add --update-cache \
-    # Development tools
-    protoc 
-RUN if [ -d /var/cache/apk ]; then rm -rf /var/cache/apk/*; fi
-
-# prod stage
-FROM base
-# /workspaces/ankaios-dashboard
-COPY /workspaces/ankaios-dashboard/app /ankaios-dashboard 
-
+FROM base AS build
+COPY /workspaces/ankaios-dashboard/app /ankaios-dashboard
 WORKDIR /ankaios-dashboard/client
-RUN npm install
-RUN quasar build
+RUN npm install \
+    && quasar build
 
+FROM docker.io/alpine:3.18.4
+RUN apk add --update-cache python3 \
+    && python3 -m ensurepip \
+    && pip3 install --no-cache-dir Flask flask-login ankaios-sdk \
+    && rm -rf /var/cache/apk/*
 WORKDIR /ankaios-dashboard
+COPY --from=build /ankaios-dashboard/static /ankaios-dashboard/static
+COPY /workspaces/ankaios-dashboard/app/AnkCommunicationService.py /ankaios-dashboard
+COPY /workspaces/ankaios-dashboard/app/DashboardAPI.py /ankaios-dashboard
+COPY /workspaces/ankaios-dashboard/app/Logger.py /ankaios-dashboard
+COPY /workspaces/ankaios-dashboard/app/main.py /ankaios-dashboard
 ENTRYPOINT ["python3", "-u", "main.py"]
