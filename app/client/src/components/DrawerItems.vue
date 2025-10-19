@@ -9,7 +9,7 @@
         clickable
         v-ripple
         @click="flagActiveItem(item.name)"
-        :to="'/' + item.name.toLowerCase()"
+        :to="'/' + (item.route || item.name.toLowerCase())"
       >
         <q-item-section avatar>
           <q-icon
@@ -28,18 +28,13 @@
     </q-list>
   </q-scroll-area>
 </template>
-
 <script setup>
 import { ref, toRef, onUpdated } from "vue";
-
 const props = defineProps({
   loggedIn: Boolean,
 });
-
 const loggedIn = toRef(props, "loggedIn");
-
 onUpdated(() => document.getElementById("itemHome").click());
-
 const items = ref([
   {
     name: "Home",
@@ -69,6 +64,16 @@ const items = ref([
     activeIconColor: "text-secondary",
   },
   {
+    name: "Activity Logs",
+    route: "activity-logs",  // Custom route with hyphen
+    isActive: false,
+    icon: "history",
+    defaultTextColor: "text-dark",
+    activeTextColor: "text-secondary",
+    defaultIconColor: "text-grey",
+    activeIconColor: "text-secondary",
+  },
+  {
     name: "About",
     isActive: false,
     icon: "info",
@@ -78,7 +83,6 @@ const items = ref([
     activeIconColor: "text-secondary",
   },
 ]);
-
 function flagActiveItem(itemName) {
   const n = items.value.length;
   for (let i = 0; i < n; i++) {

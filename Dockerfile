@@ -22,6 +22,7 @@ WORKDIR /ankaios-dashboard
 COPY --from=build /ankaios-dashboard/static /ankaios-dashboard/static
 COPY /workspaces/ankaios-dashboard/app/AnkCommunicationService.py /ankaios-dashboard
 COPY /workspaces/ankaios-dashboard/app/DashboardAPI.py /ankaios-dashboard
+COPY /workspaces/ankaios-dashboard/app/ActivityLogger.py /ankaios-dashboard
 COPY /workspaces/ankaios-dashboard/app/Logger.py /ankaios-dashboard
 COPY /workspaces/ankaios-dashboard/app/main.py /ankaios-dashboard
 ENTRYPOINT ["python3", "-u", "main.py"]

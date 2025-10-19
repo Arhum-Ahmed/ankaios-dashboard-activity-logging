@@ -38,6 +38,11 @@ const routes = [
         path: "/nologin",
         component: () => import("components/NotLoggedInView.vue"),
       },
+      {
+        path: '/activity-logs',
+        beforeEnter: guardRoutes,
+        component: () => import('components/ActivityLogView.vue')
+      }
     ],
   },
 
