@@ -62,21 +62,22 @@ class AnkCommunicationService:
     def add_new_workload(self, json, user_id=None):
         workload = self.map_json_to_workload(json)
         update_response = {}
-        status = "success"
+        status = "pending"  # Initially pending
+        workload_name = json.get("workloadName")
         
         try:
             update_response = self.ankaios.apply_workload(workload)
             print(update_response)
         except AnkaiosException as e:
             print("Ankaios Exception occured: ", e)
-            status = "failed"
+            status = "failed"  # Immediate failure
         
-        # Log the activity
+        # Log the activity with initial status
         if self.activity_logger and user_id:
             self.activity_logger.log_activity(
                 user_id=user_id,
                 action="add_workload",
-                workload_name=json.get("workloadName"),
+                workload_name=workload_name,
                 agent=json.get("agent"),
                 status=status,
                 metadata={"runtime": json.get("runtime"), "restartPolicy": json.get("restartPolicy")}
@@ -87,6 +88,32 @@ class AnkCommunicationService:
     def deleteWorkloads(self, json, user_id=None):
         for workload_name in json:
             status = "success"
+            agent = None
+            
+            # Get workload details before deleting to capture agent info
+            try:
+                complete_state = self.get_complete_state()
+                print(f"[DELETE] Complete state keys: {complete_state.keys()}")
+                
+                desired_state = complete_state.get("desiredState") or complete_state.get("desired_state", {})
+                print(f"[DELETE] Desired state keys: {desired_state.keys()}")
+                
+                workloads = desired_state.get("workloads", {})
+                print(f"[DELETE] Workloads available: {list(workloads.keys())}")
+                
+                if workload_name in workloads:
+                    workload_info = workloads[workload_name]
+                    print(f"[DELETE] Workload {workload_name} info: {workload_info}")
+                    agent = workload_info.get("agent") or workload_info.get("agentName")
+                    print(f"[DELETE] Agent extracted: {agent}")
+                else:
+                    print(f"[DELETE] Workload {workload_name} NOT found in desired state")
+            except Exception as e:
+                print(f"[DELETE] Error fetching agent info for {workload_name}: {e}")
+                import traceback
+                traceback.print_exc()
+            
+            # Now delete the workload
             try:
                 ret = self.ankaios.delete_workload(workload_name)
                 print(ret)
@@ -94,36 +121,74 @@ class AnkCommunicationService:
                 print("Ankaios Exception occured: ", e)
                 status = "failed"
             
-            # Log the activity
+            # Log the activity with agent info
+            print(f"[DELETE] About to log: workload={workload_name}, agent={agent}, status={status}")
             if self.activity_logger and user_id:
                 self.activity_logger.log_activity(
                     user_id=user_id,
                     action="delete_workload",
                     workload_name=workload_name,
+                    agent=agent,
                     status=status
                 )
     
     def update_config(self, json, user_id=None):
         workload = self.map_json_to_workload(json)
         update_response = {}
-        status = "success"
+        status = "pending"  # Initially pending
+        workload_name = json.get("workloadName")
         
         try:
             update_response = self.ankaios.apply_workload(workload)
             print(update_response)
         except AnkaiosException as e:
             print("Ankaios Exception occured: ", e)
-            status = "failed"
+            status = "failed"  # Immediate failure
         
-        # Log the activity
+        # Log the activity with initial status
         if self.activity_logger and user_id:
             self.activity_logger.log_activity(
                 user_id=user_id,
                 action="update_config",
-                workload_name=json.get("workloadName"),
+                workload_name=workload_name,
                 agent=json.get("agent"),
                 status=status,
                 metadata={"runtime": json.get("runtime"), "restartPolicy": json.get("restartPolicy")}
             )
         
         return update_response
+    
+    def check_workload_status(self, workload_name):
+        """Check the actual execution status of a workload from Ankaios state"""
+        try:
+            complete_state = self.get_complete_state()
+            
+            print(f"Checking status for workload: {workload_name}")
+            print(f"Complete state type: {type(complete_state)}")
+            
+            # If complete_state is not a dict, the SDK might be returning something else
+            if not isinstance(complete_state, dict):
+                print(f"Warning: complete_state is not a dict, it's {type(complete_state)}")
+                return "unknown"
+            
+            # Check desired state first (this is where workloads are defined)
+            desired_state = complete_state.get("desiredState") or complete_state.get("desired_state")
+            if desired_state:
+                print(f"Desired state keys: {desired_state.keys()}")
+                workloads_in_desired = desired_state.get("workloads", {})
+                print(f"Workloads in desired state: {workloads_in_desired.keys()}")
+                
+                if workload_name in workloads_in_desired:
+                    print(f"Workload {workload_name} found in desired state - marking as success")
+                    # If it's in desired state and didn't fail to be added, consider it success
+                    return "success"
+            
+            # Workload not found
+            print(f"Workload {workload_name} not found in desired state")
+            return "unknown"
+            
+        except Exception as e:
+            self.logger.error(f"Failed to check workload status: {e}")
+            import traceback
+            traceback.print_exc()
+            return "unknown"

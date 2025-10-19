@@ -70,7 +70,7 @@
                     <template v-slot:body-cell-status="props">
                         <q-td :props="props">
                             <q-badge
-                                :color="props.row.status === 'success' ? 'positive' : 'negative'"
+                                :color="getStatusColor(props.row.status)"
                                 :label="props.row.status"
                             />
                         </q-td>
@@ -256,6 +256,16 @@ export default {
                 'update_config': 'warning'
             };
             return colors[action] || 'grey';
+        },
+
+        getStatusColor(status) {
+            const colors = {
+                'success': 'positive',
+                'failed': 'negative',
+                'pending': 'warning',
+                'unknown': 'grey'
+            };
+            return colors[status] || 'grey';
         }
     }
 }

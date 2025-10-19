@@ -3,6 +3,7 @@ from flask import Flask, render_template, Response, request, jsonify
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from AnkCommunicationService import AnkCommunicationService
 from ActivityLogger import ActivityLogger
+from StatusUpdateService import StatusUpdateService
 import uuid
 import os
 import csv
@@ -29,6 +30,14 @@ activity_logger = ActivityLogger()
 
 # Pass activity_logger to AnkCommunicationService
 ank_comm_service = AnkCommunicationService(activity_logger=activity_logger)
+
+# Initialize and start the status update service
+status_update_service = StatusUpdateService(
+    activity_logger=activity_logger,
+    ank_comm_service=ank_comm_service,
+    check_interval=10
+)
+status_update_service.start()
 
 DEFAULT_PASSWORD = ""
 
@@ -212,6 +221,17 @@ def export_logs():
     except Exception as e:
         logger.error(f"Error exporting logs: {e}")
         return Response("Failed to export logs.", status=500)
+
+@dashboard.route('/updatePendingLogs', methods=['POST'])
+@login_required
+def trigger_status_update():
+    """Manually trigger status update for pending logs (for testing)"""
+    try:
+        status_update_service._check_and_update_pending_logs()
+        return Response("Status update triggered.", status=200)
+    except Exception as e:
+        logger.error(f"Error triggering status update: {e}")
+        return Response("Failed to trigger update.", status=500)
 
 def run(ip="0.0.0.0", p="5001"):
     logger.info(f"Starting the dashboard api ...")

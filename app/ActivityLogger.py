@@ -148,3 +148,61 @@ class ActivityLogger:
         except Exception as e:
             self.logger.error(f"Failed to get log count: {e}")
             return 0
+    
+    def update_log_status(self, log_id, new_status):
+        """Update the status of a specific log entry"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE activity_logs 
+                SET status = ? 
+                WHERE id = ?
+            ''', (new_status, log_id))
+            
+            conn.commit()
+            conn.close()
+            
+            self.logger.info(f"Updated log {log_id} status to {new_status}")
+            return True
+        except Exception as e:
+            self.logger.error(f"Failed to update log status: {e}")
+            return False
+    
+    def get_pending_logs(self, limit=50):
+        """Get logs with pending status for status update"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                SELECT * FROM activity_logs 
+                WHERE status = 'pending' 
+                AND action IN ('add_workload', 'update_config')
+                ORDER BY timestamp DESC 
+                LIMIT ?
+            ''', (limit,))
+            
+            rows = cursor.fetchall()
+            
+            logs = []
+            for row in rows:
+                log_entry = {
+                    'id': row['id'],
+                    'timestamp': row['timestamp'],
+                    'user_id': row['user_id'],
+                    'action': row['action'],
+                    'workload_name': row['workload_name'],
+                    'agent': row['agent'],
+                    'status': row['status'],
+                    'metadata': json.loads(row['metadata']) if row['metadata'] else None
+                }
+                logs.append(log_entry)
+            
+            conn.close()
+            return logs
+        except Exception as e:
+            self.logger.error(f"Failed to retrieve pending logs: {e}")
+            return []
