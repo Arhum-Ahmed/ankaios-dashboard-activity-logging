@@ -4,6 +4,9 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from AnkCommunicationService import AnkCommunicationService
 from ActivityLogger import ActivityLogger
 from StatusUpdateService import StatusUpdateService
+from WorkloadHealthMonitor import WorkloadHealthMonitor
+import psutil
+
 import uuid
 import os
 import csv
@@ -38,6 +41,14 @@ status_update_service = StatusUpdateService(
     check_interval=10
 )
 status_update_service.start()
+# Initialize Workload Health Monitor
+workload_monitor = WorkloadHealthMonitor(
+    db_path='activity_logs.db',
+    interval=5,              # check every 5 seconds
+    cpu_thresh=85,           # alert if CPU > 85%
+    mem_thresh=700_000_000   # alert if RSS > 700MB
+)
+
 
 DEFAULT_PASSWORD = ""
 
@@ -223,6 +234,7 @@ def export_logs():
         return Response("Failed to export logs.", status=500)
 
 @dashboard.route('/updatePendingLogs', methods=['POST'])
+
 @login_required
 def trigger_status_update():
     """Manually trigger status update for pending logs (for testing)"""
@@ -232,7 +244,61 @@ def trigger_status_update():
     except Exception as e:
         logger.error(f"Error triggering status update: {e}")
         return Response("Failed to trigger update.", status=500)
+@dashboard.route('/startMonitoring', methods=['POST'])
+@login_required
+def start_monitoring():
+    """
+    Start monitoring a workload's health using its process ID (PID)
+    Example body:
+    {
+        "workload_name": "my_task",
+        "pid": 12345,
+        "agent": "node1"
+    }
+    """
+    try:
+        data = request.json
+        workload_name = data.get("workload_name")
+        pid = data.get("pid")
+        agent = data.get("agent", "default")
+        user_id = current_user.id if current_user.is_authenticated else "anonymous"
 
+        if not workload_name or not pid:
+            return Response("Missing workload_name or pid.", status=400)
+
+        if not psutil.pid_exists(pid):
+            return Response("Invalid or non-existing PID.", status=404)
+
+        run_id = workload_monitor.start_monitoring(workload_name, user_id, agent, pid)
+        return jsonify({"message": "Monitoring started", "run_id": run_id}), 200
+
+    except Exception as e:
+        logger.error(f"Error starting workload monitoring: {e}")
+        return Response("Failed to start monitoring.", status=500)
+
+
+@dashboard.route('/getWorkloadMetrics/<run_id>', methods=['GET'])
+@login_required
+def get_workload_metrics(run_id):
+    """Retrieve all metric snapshots for a given run"""
+    try:
+        metrics = activity_logger.get_run_metrics(run_id)
+        return jsonify(metrics), 200
+    except Exception as e:
+        logger.error(f"Error fetching metrics for {run_id}: {e}")
+        return Response("Failed to fetch metrics.", status=500)
+
+
+@dashboard.route('/getAlerts', methods=['GET'])
+@login_required
+def get_alerts():
+    """Fetch all workload alerts"""
+    try:
+        alerts = activity_logger.get_logs(action_filter="alert_triggered", limit=100)
+        return jsonify(alerts), 200
+    except Exception as e:
+        logger.error(f"Error fetching alerts: {e}")
+        return Response("Failed to fetch alerts.", status=500)
 def run(ip="0.0.0.0", p="5001"):
     logger.info(f"Starting the dashboard api ...")
     dashboard.run(host=ip, port=p)

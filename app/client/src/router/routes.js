@@ -42,7 +42,13 @@ const routes = [
         path: '/activity-logs',
         beforeEnter: guardRoutes,
         component: () => import('components/ActivityLogView.vue')
+      },
+      {
+        path: '/health-monitor',
+        beforeEnter: guardRoutes,
+        component: () => import('components/HealthMonitorView.vue')
       }
+
     ],
   },
 

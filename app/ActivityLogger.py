@@ -26,6 +26,36 @@ class ActivityLogger:
                     metadata TEXT
                 )
             ''')
+            # New tables for workload health monitoring
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS workload_runs (
+                run_id TEXT PRIMARY KEY,
+                workload_name TEXT NOT NULL,
+                user_id TEXT,
+                agent TEXT,
+                start_ts TEXT NOT NULL,
+                end_ts TEXT,
+                status TEXT,
+                metadata TEXT
+                )
+''')
+
+            cursor.execute('''
+              CREATE TABLE IF NOT EXISTS workload_metrics (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              run_id TEXT NOT NULL,
+              ts TEXT NOT NULL,
+              cpu_percent REAL,
+              memory_rss_bytes INTEGER,
+              memory_vms_bytes INTEGER,
+              thread_count INTEGER,
+              io_read_bytes INTEGER,
+              io_write_bytes INTEGER,
+              custom_metrics TEXT,
+              FOREIGN KEY(run_id) REFERENCES workload_runs(run_id) ON DELETE CASCADE
+    )
+''')
+
             conn.commit()
             conn.close()
             self.logger.info("Activity logs database initialized")
@@ -52,7 +82,18 @@ class ActivityLogger:
             self.logger.info(f"Activity logged: {action} by {user_id} on {workload_name}")
         except Exception as e:
             self.logger.error(f"Failed to log activity: {e}")
-    
+            
+    def log_alert(self, user_id, workload_name, message, severity="warning", metadata=None):
+        """Log an alert event for workload health issues"""
+        self.log_activity(
+            user_id=user_id,
+            action="alert_triggered",
+            workload_name=workload_name,
+            agent="monitor",
+            status=severity,
+            metadata={"message": message, **(metadata or {})}
+        )
+
     def get_logs(self, limit=100, offset=0, action_filter=None, workload_filter=None, 
                  user_filter=None, start_date=None, end_date=None):
         """Retrieve activity logs with optional filters"""
@@ -205,4 +246,77 @@ class ActivityLogger:
             return logs
         except Exception as e:
             self.logger.error(f"Failed to retrieve pending logs: {e}")
+            return []
+        # ---------- Workload Health Monitoring ----------
+
+    def insert_workload_run(self, run_id, workload_name, user_id, agent, start_ts, status="running", metadata=None):
+        """Insert a new workload run entry"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO workload_runs (run_id, workload_name, user_id, agent, start_ts, status, metadata)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            ''', (run_id, workload_name, user_id, agent, start_ts, status, json.dumps(metadata or {})))
+            conn.commit()
+            conn.close()
+            self.logger.info(f"Inserted workload run {run_id} for {workload_name}")
+        except Exception as e:
+            self.logger.error(f"Failed to insert workload run: {e}")
+
+    def update_workload_run_end(self, run_id, end_ts, status="completed", metadata=None):
+        """Update workload run after completion"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE workload_runs SET end_ts=?, status=?, metadata=? WHERE run_id=?
+            ''', (end_ts, status, json.dumps(metadata or {}), run_id))
+            conn.commit()
+            conn.close()
+            self.logger.info(f"Updated workload run {run_id} with status {status}")
+        except Exception as e:
+            self.logger.error(f"Failed to update workload run: {e}")
+
+    def insert_metric_snapshot(self, run_id, ts, cpu_percent, mem_rss, mem_vms, thread_count, io_read, io_write, custom=None):
+        """Insert one metric snapshot"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO workload_metrics (run_id, ts, cpu_percent, memory_rss_bytes, memory_vms_bytes,
+                                              thread_count, io_read_bytes, io_write_bytes, custom_metrics)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (run_id, ts, cpu_percent, mem_rss, mem_vms, thread_count, io_read, io_write, json.dumps(custom or {})))
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            self.logger.error(f"Failed to insert metric snapshot: {e}")
+
+    def get_run_metrics(self, run_id):
+        """Retrieve all metric snapshots for a given run"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM workload_metrics WHERE run_id=? ORDER BY ts ASC', (run_id,))
+            rows = [dict(r) for r in cursor.fetchall()]
+            conn.close()
+            return rows
+        except Exception as e:
+            self.logger.error(f"Failed to retrieve metrics: {e}")
+            return []
+
+    def get_recent_runs(self, limit=20):
+        """Fetch recent workload runs"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM workload_runs ORDER BY start_ts DESC LIMIT ?', (limit,))
+            rows = [dict(r) for r in cursor.fetchall()]
+            conn.close()
+            return rows
+        except Exception as e:
+            self.logger.error(f"Failed to retrieve recent runs: {e}")
             return []
