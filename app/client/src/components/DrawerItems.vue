@@ -75,6 +75,7 @@ const items = ref([
   },
   {
     name: "Config Validator",
+    route: "validator",
     isActive: false,
     icon: "check_circle",
     defaultTextColor: "text-dark",

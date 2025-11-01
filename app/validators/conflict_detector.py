@@ -34,6 +34,14 @@ class ResourceConflictDetector:
                 'message': 'Invalid YAML - cannot check conflicts'
             }]
         
+        # ADD THIS CHECK:
+        if not isinstance(config, dict):
+            return False, [{
+                'type': 'INVALID_CONFIG',
+                'severity': 'ERROR',
+                'message': f'Configuration must be a YAML object/dictionary, got {type(config).__name__}'
+            }]
+        
         # Check port conflicts
         self._check_port_conflicts(config)
         

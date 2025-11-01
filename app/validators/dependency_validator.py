@@ -25,57 +25,26 @@ class DependencyValidator:
         
         try:
             config = yaml.safe_load(config_yaml)
-        except yaml.YAMLError:
+        except yaml.YAMLError as e:
             return False, [{
                 'type': 'YAML_ERROR',
                 'severity': 'ERROR',
-                'message': 'Invalid YAML - cannot validate dependencies'
+                'message': f'Invalid YAML syntax: {str(e)}'
+            }]
+        
+        # ADD THIS CHECK:
+        if not isinstance(config, dict):
+            return False, [{
+                'type': 'INVALID_CONFIG',
+                'severity': 'ERROR',
+                'message': f'Configuration must be a YAML object/dictionary, got {type(config).__name__}'
             }]
         
         workloads = config.get('workloads', {})
         new_workload_names = set(workloads.keys())
         all_available = self.current_workloads | new_workload_names
         
-        # Check each workload's dependencies
-        for workload_name, workload_config in workloads.items():
-            dependencies = workload_config.get('dependencies', {})
-            
-            for dep_name in dependencies:
-                # Check if dependency exists
-                if dep_name not in all_available:
-                    self.errors.append({
-                        'type': 'MISSING_DEPENDENCY',
-                        'severity': 'ERROR',
-                        'workload': workload_name,
-                        'dependency': dep_name,
-                        'message': f'Dependency "{dep_name}" does not exist',
-                        'recommendation': f'Create workload "{dep_name}" first or remove this dependency'
-                    })
-                
-                # Check for self-dependency
-                if dep_name == workload_name:
-                    self.errors.append({
-                        'type': 'SELF_DEPENDENCY',
-                        'severity': 'ERROR',
-                        'workload': workload_name,
-                        'message': f'Workload "{workload_name}" cannot depend on itself'
-                    })
-        
-        # Check for circular dependencies
-        has_cycles, cycles = self.detect_circular_dependencies(workloads)
-        if has_cycles:
-            for cycle in cycles:
-                cycle_path = ' -> '.join(cycle)
-                self.errors.append({
-                    'type': 'CIRCULAR_DEPENDENCY',
-                    'severity': 'ERROR',
-                    'message': f'Circular dependency detected: {cycle_path}',
-                    'cycle': cycle,
-                    'recommendation': 'Break the circular dependency by removing one of the dependencies'
-                })
-        
-        is_valid = len(self.errors) == 0
-        return is_valid, self.errors
+        # ... rest of the function
     
     def detect_circular_dependencies(self, workloads: Dict) -> Tuple[bool, List[List[str]]]:
         """

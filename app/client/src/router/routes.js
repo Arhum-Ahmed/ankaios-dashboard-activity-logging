@@ -45,7 +45,7 @@ const routes = [
       },
       {
         path: '/validator',
-        name: 'validator',
+        beforeEnter: guardRoutes,
         component: () => import('components/ConfigValidatorView.vue')
       }
     ],
