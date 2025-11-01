@@ -42,6 +42,11 @@ const routes = [
         path: '/activity-logs',
         beforeEnter: guardRoutes,
         component: () => import('components/ActivityLogView.vue')
+      },
+      {
+        path: '/validator',
+        name: 'validator',
+        component: () => import('components/ConfigValidatorView.vue')
       }
     ],
   },

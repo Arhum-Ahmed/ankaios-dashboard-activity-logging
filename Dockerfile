@@ -2,7 +2,7 @@ FROM docker.io/alpine:3.18.4 AS base
 RUN apk update \
     && apk add --update-cache python3 \
     && python3 -m ensurepip \
-    && pip3 install --no-cache-dir protobuf Flask flask-login ankaios-sdk \
+    && pip3 install --no-cache-dir protobuf Flask flask-login ankaios-sdk==0.6.* PyYAML\
     && apk add --no-cache nodejs npm yarn \
     && npm install -g @quasar/cli \
     && rm -rf /var/cache/apk/*
@@ -16,9 +16,11 @@ RUN npm install \
 FROM docker.io/alpine:3.18.4
 RUN apk add --update-cache python3 \
     && python3 -m ensurepip \
-    && pip3 install --no-cache-dir Flask flask-login ankaios-sdk \
+    && pip3 install --no-cache-dir Flask flask-login ankaios-sdk==0.6.* PyYAML\
     && rm -rf /var/cache/apk/*
+
 WORKDIR /ankaios-dashboard
+
 COPY --from=build /ankaios-dashboard/static /ankaios-dashboard/static
 COPY /workspaces/ankaios-dashboard/app/AnkCommunicationService.py /ankaios-dashboard
 COPY /workspaces/ankaios-dashboard/app/DashboardAPI.py /ankaios-dashboard
@@ -26,4 +28,6 @@ COPY /workspaces/ankaios-dashboard/app/ActivityLogger.py /ankaios-dashboard
 COPY /workspaces/ankaios-dashboard/app/StatusUpdateService.py /ankaios-dashboard
 COPY /workspaces/ankaios-dashboard/app/Logger.py /ankaios-dashboard
 COPY /workspaces/ankaios-dashboard/app/main.py /ankaios-dashboard
+COPY /workspaces/ankaios-dashboard/app/validators /ankaios-dashboard/validators
+
 ENTRYPOINT ["python3", "-u", "main.py"]

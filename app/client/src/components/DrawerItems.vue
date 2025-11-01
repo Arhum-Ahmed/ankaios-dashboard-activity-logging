@@ -74,6 +74,15 @@ const items = ref([
     activeIconColor: "text-secondary",
   },
   {
+    name: "Config Validator",
+    isActive: false,
+    icon: "check_circle",
+    defaultTextColor: "text-dark",
+    activeTextColor: "text-secondary",
+    defaultIconColor: "text-grey",
+    activeIconColor: "text-secondary",
+  },
+  {
     name: "About",
     isActive: false,
     icon: "info",

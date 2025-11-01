@@ -8,6 +8,8 @@ import uuid
 import os
 import csv
 import io
+from validators.test_executor import PreDeploymentTester
+import yaml
 
 class CustomFlask(Flask):
     jinja_options = Flask.jinja_options.copy()
@@ -232,6 +234,48 @@ def trigger_status_update():
     except Exception as e:
         logger.error(f"Error triggering status update: {e}")
         return Response("Failed to trigger update.", status=500)
+
+@dashboard.route('/api/validate-config', methods=['POST'])
+@login_required
+def validate_configuration():
+    """
+    Validate workload configuration before deployment
+    Expects JSON: { "config": "yaml_string" }
+    Returns: Validation report
+    """
+    try:
+        # Import here to avoid startup issues
+        from validators.test_executor import PreDeploymentTester
+        
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        config_yaml = data.get('config', '')
+        if not config_yaml:
+            return jsonify({'error': 'No configuration provided'}), 400
+        
+        # For now, don't try to get current workloads (to avoid errors)
+        current_workloads = []
+        
+        # Run validation
+        tester = PreDeploymentTester(current_workloads)
+        report = tester.run_validation_suite(config_yaml)
+        
+        return jsonify(report), 200
+        
+    except ImportError as e:
+        dashboard.logger.error(f"Import error in validator: {e}")
+        return jsonify({
+            'error': f'Validator not available: {str(e)}'
+        }), 500
+    except Exception as e:
+        dashboard.logger.error(f"Validation error: {str(e)}")
+        import traceback
+        dashboard.logger.error(traceback.format_exc())
+        return jsonify({
+            'error': f'Validation failed: {str(e)}'
+        }), 500
 
 def run(ip="0.0.0.0", p="5001"):
     logger.info(f"Starting the dashboard api ...")
