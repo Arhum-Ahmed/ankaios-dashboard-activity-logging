@@ -32,7 +32,7 @@ class DependencyValidator:
                 'message': f'Invalid YAML syntax: {str(e)}'
             }]
         
-        # ADD THIS CHECK:
+        # Check if config is a dict
         if not isinstance(config, dict):
             return False, [{
                 'type': 'INVALID_CONFIG',
@@ -41,10 +41,46 @@ class DependencyValidator:
             }]
         
         workloads = config.get('workloads', {})
+        
+        # ADD THIS CHECK: If no workloads, return early
+        if not workloads:
+            return True, []  # No workloads = no dependency issues
+        
         new_workload_names = set(workloads.keys())
         all_available = self.current_workloads | new_workload_names
         
-        # ... rest of the function
+        # Check each workload's dependencies
+        for workload_name, workload_config in workloads.items():
+            if not isinstance(workload_config, dict):
+                continue
+                
+            dependencies = workload_config.get('dependencies', {})
+            if not dependencies:
+                continue
+            
+            # Check for self-dependency
+            if workload_name in dependencies:
+                self.errors.append({
+                    'type': 'SELF_DEPENDENCY',
+                    'severity': 'ERROR',
+                    'workload': workload_name,
+                    'message': f"Workload '{workload_name}' cannot depend on itself"
+                })
+            
+            # Check for missing dependencies
+            for dep_name in dependencies.keys():
+                if dep_name not in all_available:
+                    self.errors.append({
+                        'type': 'MISSING_DEPENDENCY',
+                        'severity': 'ERROR',
+                        'workload': workload_name,
+                        'dependency': dep_name,
+                        'message': f"Workload '{workload_name}' depends on '{dep_name}' which doesn't exist"
+                    })
+        
+        # CRITICAL: This return statement must be here!
+        is_valid = len(self.errors) == 0
+        return is_valid, self.errors
     
     def detect_circular_dependencies(self, workloads: Dict) -> Tuple[bool, List[List[str]]]:
         """
