@@ -8,6 +8,7 @@ import uuid
 import os
 import csv
 import io
+import yaml
 from validators.test_executor import PreDeploymentTester
 import yaml
 
@@ -237,15 +238,11 @@ def trigger_status_update():
 
 @dashboard.route('/api/validate-config', methods=['POST'])
 def validate_configuration():
-    """
-    Validate workload configuration
-    Expects JSON: { "config": "yaml_string" }
-    Returns: Validation report
-    """
+    """Validate workload configuration"""
     try:
-        # Force JSON parsing
-        data = request.get_json(force=True)
+        from validators.test_executor import PreDeploymentTester
         
+        data = request.get_json(force=True)
         if not data or not isinstance(data, dict):
             return jsonify({'error': 'Invalid JSON data'}), 400
             
@@ -253,21 +250,27 @@ def validate_configuration():
         if not config_yaml:
             return jsonify({'error': 'No configuration provided'}), 400
         
-        # Import validator
-        from validators.test_executor import PreDeploymentTester
-        
-        # Run validation with empty current workloads
         current_workloads = []
         tester = PreDeploymentTester(current_workloads)
         report = tester.run_validation_suite(config_yaml)
         
         return jsonify(report), 200
         
+    except yaml.YAMLError as e:
+        # YAML errors should be in the report, not crash
+        return jsonify({
+            'overall_status': 'FAILED',
+            'tests': [{
+                'name': 'YAML Validation',
+                'status': 'FAILED',
+                'issues': [{'type': 'SYNTAX_ERROR', 'severity': 'ERROR', 'message': str(e)}]
+            }],
+            'summary': {'total_tests': 1, 'failed': 1, 'passed': 0}
+        }), 200
     except Exception as e:
         import traceback
-        error_msg = traceback.format_exc()
-        logger.error(f"Validation error: {error_msg}")
-        return jsonify({'error': str(e), 'traceback': error_msg}), 500
+        dashboard.logger.error(traceback.format_exc())
+        return jsonify({'error': str(e)}), 500
 
 def run(ip="0.0.0.0", p="5001"):
     logger.info(f"Starting the dashboard api ...")

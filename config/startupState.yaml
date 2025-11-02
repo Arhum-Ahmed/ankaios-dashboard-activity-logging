@@ -12,7 +12,7 @@ workloads:
     dependencies:
     runtimeConfig: |
        image: dashboard:0.0
-       commandOptions: ["-p", "5001:5001"]
+       commandOptions: ["--network", "host"]
     controlInterfaceAccess:
         allowRules:
           - type: StateRule

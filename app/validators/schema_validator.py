@@ -9,7 +9,7 @@ from typing import Tuple, List, Dict, Any
 class ConfigurationValidator:
     """Validates Ankaios workload configurations"""
     
-    VALID_RUNTIMES = ['podman', 'docker', 'podman-kube']
+    VALID_RUNTIMES = ['podman', 'podman-kube']
     VALID_RESTART_POLICIES = ['NEVER', 'ALWAYS', 'ON_FAILURE']
     
     def __init__(self):
@@ -28,13 +28,11 @@ class ConfigurationValidator:
         try:
             config = yaml.safe_load(config_yaml)
         except yaml.YAMLError as e:
-            self.errors.append({
+            return False, [{
                 'type': 'SYNTAX_ERROR',
                 'severity': 'ERROR',
-                'message': f'Invalid YAML syntax: {str(e)}',
-                'line': getattr(e, 'problem_mark', None)
-            })
-            return False, self.errors
+                'message': f'Invalid YAML syntax: {str(e)}'
+            }]
         
         # Step 2: Validate structure
         if not isinstance(config, dict):

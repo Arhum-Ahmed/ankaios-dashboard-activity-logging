@@ -2,7 +2,7 @@ FROM docker.io/alpine:3.18.4 AS base
 RUN apk update \
     && apk add --update-cache python3 \
     && python3 -m ensurepip \
-    && pip3 install --no-cache-dir protobuf Flask flask-login ankaios-sdk==0.6.* PyYAML\
+    && pip3 install --no-cache-dir protobuf Flask flask-login ankaios-sdk==0.6.* PyYAML pytest requests \
     && apk add --no-cache nodejs npm yarn \
     && npm install -g @quasar/cli \
     && rm -rf /var/cache/apk/*
@@ -16,7 +16,7 @@ RUN npm install \
 FROM docker.io/alpine:3.18.4
 RUN apk add --update-cache python3 \
     && python3 -m ensurepip \
-    && pip3 install --no-cache-dir Flask flask-login ankaios-sdk==0.6.* PyYAML\
+    && pip3 install --no-cache-dir Flask flask-login ankaios-sdk==0.6.* PyYAML pytest requests \
     && rm -rf /var/cache/apk/*
 
 WORKDIR /ankaios-dashboard
