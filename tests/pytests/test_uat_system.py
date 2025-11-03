@@ -666,7 +666,3 @@ def test_suite_summary():
     - API structure
     """
     pass
-
-
-if __name__ == '__main__':
-    pytest.main([__file__, '-v', '--tb=short'])
