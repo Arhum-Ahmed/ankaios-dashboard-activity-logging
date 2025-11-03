@@ -2,7 +2,7 @@
 Locust Load Testing for Configuration Validator
 Non-Functional Testing Tool: Performance & Scalability
 
-locust -f tests/locustfile.py \
+locust -f tests/locust/locustfile.py \
   --host=http://localhost:5001 \
   --headless \
   --users 10 \

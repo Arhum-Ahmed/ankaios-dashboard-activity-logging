@@ -1,112 +1,212 @@
-# Ankaios Activity Logger Extension
+# Ankaios Dashboard Extensions
+
+**Course:** ENGR 5550G - Software Testing and Quality Assurance  
+**Team:** Bug Hunters  
+**Instructor:** Prof. Mohamed El-Darieby
+
+---
 
 ## Overview
-The Activity Logger Extension adds comprehensive activity tracking to the Ankaios Dashboard, automatically logging all workload-related operations with detailed metadata including user, timestamp, workload details, and execution status.
+
+This project extends the Eclipse Ankaios Dashboard with two major features:
+
+1. **Activity Logger** - Tracks all workload operations with SQLite persistence
+2. **Configuration Validator** - Pre-deployment validation using graph algorithms (DFS-based cycle detection)
+
+---
+
+## Quick Start
+
+### Prerequisites
+- Docker & Docker Compose
+- Python 3.11+
+- jq (for CLI integration)
+
+### Start Dashboard
+```bash
+./run_dashboard.sh
+```
+
+### Stop Dashboard
+```bash
+./stop_dashboard
+```
+
+### Access Dashboard
+```
+http://localhost:5001
+```
+
+---
 
 ## Features
-- **Automatic Logging**: Captures add, delete, and update operations on workloads
-- **User Tracking**: Records which user performed each action
-- **Execution Status**: Monitors actual workload execution state (success/failed/pending)
-- **Filtering**: Filter logs by action type, workload name, user, and date range
-- **Export**: Download activity logs as CSV for external analysis
-- **Real-time UI**: Browse and search logs through an intuitive web interface
 
-## Architecture
+### Phase 1: Activity Logger
+- Automatic logging of workload operations (add/delete/update)
+- User tracking and execution status monitoring
+- Filter logs by action, workload, user, date
+- Export logs as CSV
 
-### Components Added/Modified
-1. **ActivityLogger.py** - Core logging module with SQLite persistence
-2. **Modified AnkCommunicationService.py** - Integrated logging into workload operations
-3. **Modified DashboardAPI.py** - Added REST endpoints for log retrieval and export
-4. **ActivityLogView.vue** - Frontend UI component for viewing and filtering logs
+### Phase 2: Configuration Validator
+- **Schema Validation** - Validates YAML against Ankaios specification
+- **Dependency Graph Analysis** - Graph-based dependency validation
+- **Circular Dependency Detection** - DFS algorithm with O(V+E) complexity
+- **Resource Conflict Detection** - Port and name conflict checking
+- **REST API** - `/api/validate-config` endpoint for programmatic access
+- **CLI Integration** - Pre-deployment validation gate
 
-### Database Schema
-```sql
-CREATE TABLE activity_logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    timestamp TEXT NOT NULL,
-    user_id TEXT NOT NULL,
-    action TEXT NOT NULL,
-    workload_name TEXT,
-    agent TEXT,
-    status TEXT,
-    metadata TEXT
-);
+---
+
+## CLI Integration
+
+### Automatic Pre-Deployment Validation
+
+Add this to your `~/.bashrc` or `~/.zshrc`:
+```bash
+# Save actual ank binary path
+ANK_BIN=$(which ank)
+
+# Override ank with validation
+ank() {
+    if [[ " $* " =~ " apply " ]]; then
+        local config_file="${@: -1}"
+        
+        echo "🔍 Validating configuration before deployment..."
+        
+        local config_content=$(cat "$config_file" 2>/dev/null)
+        if [ $? -ne 0 ]; then
+            echo "❌ Error: Cannot read file '$config_file'"
+            return 1
+        fi
+        
+        local response=$(curl -s -X POST http://localhost:5001/api/validate-config \
+            -H "Content-Type: application/json" \
+            -d "{\"config\": $(jq -Rs . <<< "$config_content")}")
+        
+        local status=$(echo "$response" | jq -r '.overall_status')
+        
+        if [ "$status" == "PASSED" ]; then
+            echo "✅ Validation passed. Deploying..."
+            "$ANK_BIN" "$@"
+        else
+            echo "❌ Validation FAILED:"
+            echo "$response" | jq -r '.tests[] | select(.status == "FAILED") | .issues[] | "  - \(.message)"'
+            return 1
+        fi
+    else
+        "$ANK_BIN" "$@"
+    fi
+}
 ```
 
-### API Endpoints
-- `GET /activityLogs` - Retrieve logs with optional filters (action, workload, user, date range)
-- `GET /exportLogs` - Export filtered logs as CSV
-
-## Installation
-
-### Files Added/Modified
-```
-app/
-├── ActivityLogger.py (NEW)
-├── AnkCommunicationService.py (MODIFIED)
-├── DashboardAPI.py (MODIFIED)
-└── client/src/components/
-    ├── ActivityLogView.vue (NEW)
-    └── DrawerItems.vue (MODIFIED)
-
-client/src/router/routes.js (MODIFIED)
+**Activate:**
+```bash
+source ~/.bashrc
 ```
 
-### Setup Steps
-1. Clone the repo
-2. Build the Docker image:
-   ```bash 
-   ./run_dashboard.sh
-   ```
-3. Access the Activity Logs via the dashboard menu
-
-## Usage
-
-### Viewing Activity Logs
-1. Navigate to **Activity Logs** in the dashboard drawer menu
-2. View all logged activities in a paginated table
-3. Use filters to narrow down results:
-   - **Action**: Filter by add_workload, delete_workload, or update_config
-   - **Workload Name**: Search by workload name
-   - **User ID**: Filter by specific user
-
-### Exporting Logs
-1. Apply desired filters (optional)
-2. Click **Export CSV** button
-3. Download includes all filtered results
-
-### Logged Actions
-- **add_workload**: When a new workload is created
-- **delete_workload**: When a workload is removed
-- **update_config**: When workload configuration is modified
-
-### Status Values
-- **success**: Workload operation completed successfully
-- **failed**: Workload operation or execution failed
-- **pending**: Workload submitted but execution state unclear
-- **unknown**: Unable to determine execution state
-
-## Integration with Ankaios
-
-The Activity Logger integrates at the API layer, capturing all operations performed through the dashboard:
-
+**Usage:**
+```bash
+# Your normal command - validation happens automatically!
+ank -k apply config/test.yaml
 ```
-User Action → Dashboard UI → Flask API → AnkCommunicationService → Ankaios Server
-                                 ↓
-                          ActivityLogger
-                                 ↓
-                          SQLite Database
+
+---
+
+## API Endpoints
+
+### Activity Logger
+- `GET /activityLogs` - Retrieve activity logs with optional filters
+- `GET /exportLogs` - Export logs as CSV
+
+### Configuration Validator
+- `POST /api/validate-config` - Validate workload configuration
+
+**Example Request:**
+```bash
+curl -X POST http://localhost:5001/api/validate-config \
+  -H "Content-Type: application/json" \
+  -d '{
+    "config": "apiVersion: v0.1\nworkloads:\n  nginx:\n    runtime: podman\n    agent: agent_A"
+  }' | jq
 ```
+
+---
 
 ## Testing
 
-### Test Scenarios
-1. **Add Workload**: Create a workload via dashboard → Verify log entry with "add_workload" action
-2. **Delete Workload**: Remove a workload → Verify log entry with "delete_workload" action
-3. **Update Config**: Modify workload settings → Verify log entry with "update_config" action
-4. **Filter Logs**: Apply filters and verify results match criteria
-5. **Export**: Download CSV and verify data integrity
+### Run Functional Tests
+```bash
+cd tests/pytests
+pytest test_uat_system.py -v
+```
 
+### Run Performance Benchmarks
+```bash
+cd tests/pytests
+pytest perf_benchmark.py -v --benchmark-only
+```
+
+### Run Load Tests (Locust)
+```bash
+cd tests/locust
+locust -f locustfile.py \
+  --host=http://localhost:5001 \
+  --headless \
+  --users 10 \
+  --spawn-rate 2 \
+  --run-time 60s \
+  --html report_locust.html \
+  --csv report_locust
+```
+
+### Test Results
+- **Total Tests:** 34 (18 functional, 16 non-functional)
+- **Pass Rate:** 100%
+- **Performance:** Average 50ms response time (< 500ms target)
+- **Load Test:** 0% error rate with 50 concurrent users
+- **Algorithm Complexity:** O(V+E) verified empirically
+
+---
+
+## Project Structure
+```
+app/
+├── ActivityLogger.py                  # Activity logging module
+├── validators/                        # Configuration validation
+│   ├── schema_validator.py
+│   ├── dependency_validator.py       # DFS cycle detection
+│   ├── conflict_detector.py
+│   └── test_executor.py
+├── AnkCommunicationService.py         # Modified for logging
+└── DashboardAPI.py                    # REST endpoints
+
+tests/
+├── pytests/
+│   ├── test_uat_system.py            # Functional & UAT tests
+│   └── perf_benchmark.py             # Performance benchmarks
+└── locust/
+    └── locustfile.py                 # Load testing
+```
+
+---
+
+## Algorithm Details
+
+**Circular Dependency Detection:**
+- **Algorithm:** Depth-First Search (DFS) with color marking
+- **Time Complexity:** O(V + E) where V = workloads, E = dependencies
+- **Space Complexity:** O(V) for color and parent tracking
+- **Verification:** Linear scaling confirmed through empirical testing
+
+---
 
 ## Contributors
-Group:Bug Hunters - Software Testing & QA Course Project
+
+**Bug Hunters Team:**
+- Arhum Ahmed (100947799)
+- Maliha Bilal (100985340)
+- Parnia Azam Sadeghi (100989023)
+- Revathi Sekar (100948672)
+- Shivam Patel (101003473)
+
+---

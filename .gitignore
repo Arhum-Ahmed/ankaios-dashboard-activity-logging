@@ -4,3 +4,8 @@ ank_base.proto
 control_api_pb2.py
 control_api.proto
 .vs/
+report_locust.html
+report_locust_exceptions.csv
+report_locust_failures.csv
+report_locust_stats.csv
+report_locust_stats_history.csv
