@@ -61,12 +61,13 @@ class ResourceConflictDetector:
             for port in ports:
                 port_map[port] = workload_name
         
-        # Check new workloads for conflicts
         new_workloads = config.get('workloads', {})
         for workload_name, workload_config in new_workloads.items():
+            if not isinstance(workload_config, dict):
+                continue 
             runtime_config = workload_config.get('runtimeConfig', '')
             ports = self._extract_ports(runtime_config)
-            
+
             for port in ports:
                 if port in port_map and port_map[port] != workload_name:
                     self.errors.append({

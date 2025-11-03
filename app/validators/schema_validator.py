@@ -66,6 +66,14 @@ class ConfigurationValidator:
     
     def _validate_workload(self, name: str, config: Dict[str, Any]):
         """Validate individual workload configuration"""
+        if not isinstance(config, dict):
+            self.errors.append({
+                'type': 'STRUCTURE_ERROR',
+                'severity': 'ERROR',
+                'workload': name,
+                'message': f'Workload "{name}" configuration must be a dictionary, got {type(config).__name__}'
+            })
+            return
         
         # Check naming conventions
         if not name:

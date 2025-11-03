@@ -87,9 +87,10 @@ class DependencyValidator:
         Detect circular dependencies using DFS
         Returns: (has_cycles, list_of_cycles)
         """
-        # Build adjacency list (dependency graph)
         graph = {}
         for workload_name, workload_config in workloads.items():
+            if not isinstance(workload_config, dict):
+                continue
             deps = workload_config.get('dependencies', {})
             graph[workload_name] = list(deps.keys())
         

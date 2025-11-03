@@ -4,12 +4,13 @@ from flask_login import LoginManager, UserMixin, login_user, login_required, log
 from AnkCommunicationService import AnkCommunicationService
 from ActivityLogger import ActivityLogger
 from StatusUpdateService import StatusUpdateService
+from validators.test_executor import PreDeploymentTester
 import uuid
 import os
 import csv
 import io
 import yaml
-from validators.test_executor import PreDeploymentTester
+from datetime import datetime
 import yaml
 
 class CustomFlask(Flask):
@@ -240,9 +241,8 @@ def trigger_status_update():
 def validate_configuration():
     """Validate workload configuration"""
     try:
-        from validators.test_executor import PreDeploymentTester
-        
         data = request.get_json(force=True)
+        
         if not data or not isinstance(data, dict):
             return jsonify({'error': 'Invalid JSON data'}), 400
             
@@ -250,26 +250,19 @@ def validate_configuration():
         if not config_yaml:
             return jsonify({'error': 'No configuration provided'}), 400
         
+        from validators.test_executor import PreDeploymentTester
         current_workloads = []
         tester = PreDeploymentTester(current_workloads)
         report = tester.run_validation_suite(config_yaml)
         
         return jsonify(report), 200
         
-    except yaml.YAMLError as e:
-        # YAML errors should be in the report, not crash
-        return jsonify({
-            'overall_status': 'FAILED',
-            'tests': [{
-                'name': 'YAML Validation',
-                'status': 'FAILED',
-                'issues': [{'type': 'SYNTAX_ERROR', 'severity': 'ERROR', 'message': str(e)}]
-            }],
-            'summary': {'total_tests': 1, 'failed': 1, 'passed': 0}
-        }), 200
+    except (ValueError, TypeError) as e:
+        return jsonify({'error': 'Malformed JSON request'}), 400
+        
     except Exception as e:
         import traceback
-        dashboard.logger.error(traceback.format_exc())
+        dashboard.logger.error(f"Validation error: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 def run(ip="0.0.0.0", p="5001"):

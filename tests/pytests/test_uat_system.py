@@ -222,7 +222,8 @@ workloads:
         # Check for YAML/syntax error
         has_syntax_error = any(
             'SYNTAX' in issue.get('type', '').upper() or 
-            'YAML' in issue.get('type', '').upper()
+            'YAML' in issue.get('type', '').upper() or
+            'STRUCTURE' in issue.get('type', '').upper()  # ADD THIS LINE
             for test in data['tests']
             for issue in test.get('issues', [])
         )
