@@ -63,19 +63,17 @@ http://localhost:5001
 
 Add this to your `~/.bashrc` or `~/.zshrc`:
 ```bash
-# Save actual ank binary path
 ANK_BIN=$(which ank)
 
-# Override ank with validation
 ank() {
     if [[ " $* " =~ " apply " ]]; then
         local config_file="${@: -1}"
         
-        echo "🔍 Validating configuration before deployment..."
+        echo "Validating configuration before deployment..."
         
         local config_content=$(cat "$config_file" 2>/dev/null)
         if [ $? -ne 0 ]; then
-            echo "❌ Error: Cannot read file '$config_file'"
+            echo "Error: Cannot read file '$config_file'"
             return 1
         fi
         
@@ -86,10 +84,10 @@ ank() {
         local status=$(echo "$response" | jq -r '.overall_status')
         
         if [ "$status" == "PASSED" ]; then
-            echo "✅ Validation passed. Deploying..."
+            echo "Validation passed. Deploying..."
             "$ANK_BIN" "$@"
         else
-            echo "❌ Validation FAILED:"
+            echo "Validation FAILED:"
             echo "$response" | jq -r '.tests[] | select(.status == "FAILED") | .issues[] | "  - \(.message)"'
             return 1
         fi
