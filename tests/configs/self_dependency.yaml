@@ -1,0 +1,6 @@
+workloads:
+  nginx:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      nginx: {}

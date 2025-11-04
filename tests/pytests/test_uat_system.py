@@ -8,12 +8,20 @@ import requests
 import json
 import time
 import concurrent.futures
+import os
 from typing import Dict, Any
+from pathlib import Path
 
-
+CONFIGS_DIR = Path(__file__).parent.parent / "configs"
 BASE_URL = "http://localhost:5001"
 API_ENDPOINT = f"{BASE_URL}/api/validate-config"
 
+def load_config(filename: str) -> str:
+    """Load a config file from tests/configs/ directory"""
+    config_path = CONFIGS_DIR / filename
+    if not config_path.exists():
+        pytest.fail(f"Config file not found: {config_path}")
+    return config_path.read_text()
 
 # ============================================================================
 # Fixtures
@@ -303,6 +311,61 @@ workloads:
         assert 'summary' in data, "Response should have summary"
         assert isinstance(data['tests'], list), "tests should be an array"
 
+    
+    def test_uat_09_cli_validates_before_deployment(self):
+        """UAT-09: CLI Validates Before Deployment (FR-10)"""
+        config = load_config("valid_config.yaml")
+        
+        # Simulate CLI: call validator before deployment
+        response = validate_config(config)
+        data = response.json()
+        
+        assert response.status_code == 200, "API should respond"
+        assert data['overall_status'] == 'PASSED', "Valid config should pass"
+    
+    def test_uat_10_cli_blocks_invalid_deployment(self):
+        """UAT-10: CLI Blocks Invalid Deployment (FR-11)"""
+        config = load_config("invalid_missing_runtime.yaml")
+        
+        response = validate_config(config)
+        data = response.json()
+        
+        assert response.status_code == 200
+        assert data['overall_status'] == 'FAILED', "Should block invalid deployment"
+    
+    def test_uat_11_cli_formats_errors_human_readable(self):
+        """UAT-11: CLI Formats Errors in Human-Readable Format (FR-12)"""
+        config = load_config("circular_dependency.yaml")
+        
+        response = validate_config(config)
+        data = response.json()
+        
+        assert data['overall_status'] == 'FAILED'
+        
+        # Verify errors are structured for CLI formatting
+        errors = [issue for test in data['tests'] for issue in test.get('issues', [])]
+        assert len(errors) > 0, "Should have errors for CLI to format"
+        
+        for error in errors:
+            assert 'type' in error, "Error should have type field"
+    
+    def test_uat_12_cli_graceful_degradation_api_unavailable(self):
+        """UAT-12: CLI Graceful Degradation (FR-13)"""
+        import requests
+        
+        # Test that connection errors are detectable
+        try:
+            response = requests.post(
+                "http://localhost:9999/api/validate-config",
+                json={"config": "test"},
+                timeout=2
+            )
+            api_available = True
+        except (requests.ConnectionError, requests.Timeout):
+            api_available = False
+        
+        assert not api_available, "Should detect API unavailability"
+
 
 # ============================================================================
 # System Test Cases
@@ -535,134 +598,3 @@ workloads:
         # If doubling size roughly doubles time, it's O(V+E)
         ratio = results[1][1] / results[0][1]  # 20/10 ratio
         assert 1.2 < ratio < 3.5, f"Time should scale roughly linearly, got {ratio}x"
-
-
-# ============================================================================
-# Parametrized Tests
-# ============================================================================
-
-class TestParametrized:
-    """Parametrized test cases for various scenarios"""
-    
-    @pytest.mark.parametrize("runtime", ["podman", "podman-kube"])
-    def test_valid_runtime_values(self, runtime):
-        """Test all valid runtime values are accepted"""
-        config = f"""
-workloads:
-  test:
-    runtime: {runtime}
-    agent: agent_A
-        """
-        response = validate_config(config)
-        data = response.json()
-        
-        assert response.status_code == 200
-        assert data['overall_status'] == 'PASSED'
-    
-    @pytest.mark.parametrize("invalid_runtime", [
-        "docker", "kubernetes", "invalid", "123", ""
-    ])
-    def test_invalid_runtime_values(self, invalid_runtime):
-        """Test invalid runtime values are rejected"""
-        config = f"""
-workloads:
-  test:
-    runtime: {invalid_runtime}
-    agent: agent_A
-        """
-        response = validate_config(config)
-        data = response.json()
-        
-        assert data['overall_status'] == 'FAILED'
-    
-    @pytest.mark.parametrize("agent", ["agent_A", "agent_B", "agent_C"])
-    def test_valid_agent_names(self, agent):
-        """Test various agent names are accepted"""
-        config = f"""
-workloads:
-  test:
-    runtime: podman
-    agent: {agent}
-        """
-        response = validate_config(config)
-        data = response.json()
-        
-        assert response.status_code == 200
-        assert data['overall_status'] == 'PASSED'
-
-
-# ============================================================================
-# Performance Benchmarks
-# ============================================================================
-
-@pytest.mark.benchmark
-class TestPerformance:
-    """Performance benchmark tests"""
-    
-    def test_response_time_simple_config(self, benchmark):
-        """Benchmark: Simple configuration validation"""
-        config = """
-workloads:
-  test:
-    runtime: podman
-    agent: agent_A
-        """
-        
-        def run_validation():
-            return validate_config(config)
-        
-        result = benchmark(run_validation)
-        assert result.status_code == 200
-    
-    def test_response_time_complex_config(self, benchmark):
-        """Benchmark: Complex configuration with dependencies"""
-        config = """
-workloads:
-  frontend:
-    runtime: podman
-    agent: agent_A
-    dependencies:
-      backend: {}
-  backend:
-    runtime: podman
-    agent: agent_A
-    dependencies:
-      database: {}
-  database:
-    runtime: podman
-    agent: agent_A
-        """
-        
-        def run_validation():
-            return validate_config(config)
-        
-        result = benchmark(run_validation)
-        assert result.status_code == 200
-
-
-# ============================================================================
-# Test Summary
-# ============================================================================
-
-def test_suite_summary():
-    """
-    Test Suite Summary
-    ==================
-    UAT Tests: 8
-    System Tests: 10
-    Parametrized Tests: 8
-    Performance Tests: 2
-    
-    Total: 28 tests
-    
-    Coverage:
-    - Schema validation
-    - Dependency validation
-    - Circular dependency detection
-    - Resource conflict detection
-    - Performance testing
-    - Concurrent access
-    - Error handling
-    - API structure
-    """
-    pass

@@ -1,0 +1,3 @@
+workloads:
+  nginx:
+    agent: agent_A

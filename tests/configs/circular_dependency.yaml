@@ -1,0 +1,16 @@
+workloads:
+  A:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      B: {}
+  B:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      C: {}
+  C:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      A: {}

@@ -1,0 +1,6 @@
+workloads:
+  app:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      database: {}
