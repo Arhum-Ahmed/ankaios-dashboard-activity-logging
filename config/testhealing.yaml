@@ -1,0 +1,16 @@
+apiVersion: v0.1
+workloads:
+  My Nginx:   # ❌ Invalid name (spaces + uppercase)
+    dependencies:
+      non_existing_service: {}  # ❌ Missing dependency
+    runtimeConfig: "image: ghcr.io/eclipse/kuksa.val/databroker:0.4.1"
+
+
+  redis:  # ❌ Missing runtime & agent
+    dependencies: {}
+    runtimeConfig: "image: redis:7"
+
+
+  backend:  # ❌ Missing runtimeConfig
+    runtime: podman
+    agent: agent_B

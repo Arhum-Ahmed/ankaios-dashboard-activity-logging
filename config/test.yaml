@@ -4,7 +4,7 @@ workloads:
     runtime: podman
     agent: agent_A
     dependencies:
-      nginx: {}
+      # nginx: {}
     runtimeConfig: |
       image: ghcr.io/eclipse/kuksa.val/databroker:0.4.1
       commandArgs: ["--insecure"]
