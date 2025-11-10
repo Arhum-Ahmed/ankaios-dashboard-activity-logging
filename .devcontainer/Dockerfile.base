@@ -103,16 +103,35 @@ RUN cargo install cargo-llvm-cov --locked; \
     cargo install cargo-deny --locked; \
     cargo install cargo-about --locked
 
-# Install required cargo targets and toolchains
-RUN rustup target add x86_64-unknown-linux-musl \
-    && rustup target add aarch64-unknown-linux-musl
+# # Install required cargo targets and toolchains
+# RUN rustup target add x86_64-unknown-linux-musl \
+#     && rustup target add aarch64-unknown-linux-musl
 
-# Retrieve latest verion of ankaios from github and build it
+# # Retrieve latest verion of ankaios from github and build it
+# WORKDIR "/tmp"
+# RUN sudo git clone --depth 1 --branch v0.6.0 https://github.com/eclipse-ankaios/ankaios.git
+# WORKDIR "/tmp/ankaios"
+# RUN sudo chmod a+w /tmp/ankaios
+# RUN cargo build
+# RUN sudo cp ./target/x86_64-unknown-linux-musl/debug/ank ./target/x86_64-unknown-linux-musl/debug/ank-server ./target/x86_64-unknown-linux-musl/debug/ank-agent /usr/local/bin
+
+# USER root
+
+
+# Use native target for Apple Silicon
+RUN rustup target add aarch64-unknown-linux-musl
+
 WORKDIR "/tmp"
 RUN sudo git clone --depth 1 --branch v0.6.0 https://github.com/eclipse-ankaios/ankaios.git
 WORKDIR "/tmp/ankaios"
 RUN sudo chmod a+w /tmp/ankaios
-RUN cargo build
-RUN sudo cp ./target/x86_64-unknown-linux-musl/debug/ank ./target/x86_64-unknown-linux-musl/debug/ank-server ./target/x86_64-unknown-linux-musl/debug/ank-agent /usr/local/bin
 
-USER root
+# Build native
+RUN cargo build --release --target aarch64-unknown-linux-musl
+
+# Copy native binaries instead of x86_64 ones
+RUN sudo cp ./target/aarch64-unknown-linux-musl/release/ank \
+            ./target/aarch64-unknown-linux-musl/release/ank-server \
+            ./target/aarch64-unknown-linux-musl/release/ank-agent \
+            /usr/local/bin
+
