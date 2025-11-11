@@ -1,0 +1,29 @@
+{
+  "workloads": {
+    "service-a": {
+      "depends_on": [
+        "service-b"
+      ],
+      "resources": {
+        "cpu": 2,
+        "memory": 2048
+      }
+    },
+    "service-b": {
+      "depends_on": [],
+      "resources": {
+        "cpu": 1,
+        "memory": 1024
+      }
+    },
+    "service-c": {
+      "depends_on": [
+        "service-a"
+      ],
+      "resources": {
+        "cpu": 3,
+        "memory": 4096
+      }
+    }
+  }
+}
