@@ -1,0 +1,9 @@
+apiVersion: v0.1
+workloads:
+  demo:
+    runtime: podman
+    agent: agent_A
+    dependencies: {}
+    runtimeConfig: |-
+      image: alpine:latest
+      commandArgs: ["--help"]

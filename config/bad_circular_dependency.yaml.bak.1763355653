@@ -1,0 +1,16 @@
+apiVersion: v0.1
+workloads:
+  workloadA:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      workloadB: {}
+    runtimeConfig: |
+      image: alpine:latest
+  workloadB:
+    runtime: podman
+    agent: agent_B
+    dependencies:
+      workloadA: {}
+    runtimeConfig: |
+      image: alpine:latest

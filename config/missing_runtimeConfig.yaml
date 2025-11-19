@@ -1,0 +1,7 @@
+apiVersion: v0.1
+workloads:
+  incomplete:
+    runtime: podman
+    agent: agent_A
+    dependencies: {}
+    # runtimeConfig missing (should be added with minimal defaults)

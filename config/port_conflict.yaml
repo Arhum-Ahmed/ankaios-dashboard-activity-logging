@@ -1,0 +1,18 @@
+apiVersion: v0.1
+workloads:
+  service1:
+    runtime: podman
+    agent: agent_A
+    dependencies: {}
+    runtimeConfig: |
+      image: alpine:latest
+      ports:
+        - 8080
+  service2:
+    runtime: podman
+    agent: agent_B
+    dependencies: {}
+    runtimeConfig: |
+      image: alpine:latest
+      ports:
+        - 8081

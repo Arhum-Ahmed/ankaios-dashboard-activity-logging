@@ -1,0 +1,9 @@
+apiVersion: v0.1
+workloads:
+  broken:
+    runtime: podman
+    agent: agent_A
+    dependencies: {}
+    runtimeConfig: |
+      image: alpine:latest
+      command: ["/bin/sh", "-c", "echo hi"

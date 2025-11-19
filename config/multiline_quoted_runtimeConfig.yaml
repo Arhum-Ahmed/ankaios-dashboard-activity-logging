@@ -1,0 +1,8 @@
+apiVersion: v0.1
+workloads:
+  weird:
+    runtime: podman
+    agent: agent_A
+    dependencies: {}
+    # runtimeConfig incorrectly provided as a plain quoted string instead of block
+    runtimeConfig: "image: alpine:latest\ncommand: ['sh','-c','echo hi']"

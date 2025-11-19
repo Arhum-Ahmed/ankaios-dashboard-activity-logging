@@ -1,0 +1,8 @@
+apiVersion: v0.1
+workloads:
+  demo:
+    runtime: podman
+    agent: agent_A
+    runtimeConfig: |-
+      image: alpine:latest
+      command: ["/bin/sh", "-c", "echo hi"]

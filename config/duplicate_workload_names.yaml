@@ -1,0 +1,14 @@
+apiVersion: v0.1
+workloads:
+  app:
+    runtime: podman
+    agent: agent_A
+    dependencies: {}
+    runtimeConfig: |
+      image: docker.io/library/alpine:latest
+  app_2:
+    runtime: podman
+    agent: agent_B
+    dependencies: {}
+    runtimeConfig: |
+      image: docker.io/library/alpine:latest

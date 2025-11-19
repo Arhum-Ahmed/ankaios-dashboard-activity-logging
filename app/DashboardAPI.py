@@ -109,8 +109,10 @@ def get_complete_state():
 @login_required
 def add_new_workload():
     user_id = current_user.id if current_user.is_authenticated else "anonymous"
-    print(ank_comm_service.add_new_workload(request.json, user_id=user_id))
-    return Response("Workload added.", status=200, mimetype='application/json')
+    result = ank_comm_service.add_new_workload(request.json, user_id=user_id)
+    
+    # Return the comprehensive result with validation and deployment status
+    return jsonify(result), (200 if result.get('status') == 'success' else 400)
 
 @dashboard.route('/deleteWorkloads', methods=['POST'])
 @login_required
@@ -263,6 +265,46 @@ def validate_configuration():
     except Exception as e:
         import traceback
         dashboard.logger.error(f"Validation error: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
+@dashboard.route('/api/validate-and-heal', methods=['POST'])
+@login_required
+def validate_and_heal_configuration():
+    """
+    Validate and automatically heal workload configuration.
+    Returns the validation report and healing status.
+    """
+    try:
+        user_id = current_user.id if current_user.is_authenticated else "anonymous"
+        data = request.get_json(force=True)
+        
+        if not data or not isinstance(data, dict):
+            return jsonify({'error': 'Invalid JSON data'}), 400
+        
+        config_yaml = data.get('config', '')
+        if not config_yaml:
+            return jsonify({'error': 'No configuration provided'}), 400
+        
+        # Use the AnkCommunicationService for validation and healing
+        validation_result = ank_comm_service.validate_and_heal_config(config_yaml, user_id)
+        
+        return jsonify({
+            'success': validation_result['success'],
+            'original_valid': validation_result['original_valid'],
+            'healed': validation_result['healed'],
+            'final_valid': validation_result['final_valid'],
+            'deployment_status': validation_result['deployment_status'],
+            'config': validation_result['config'],
+            'validation_report': validation_result['validation_report'],
+            'healing_report': validation_result['healing_report']
+        }), 200
+        
+    except (ValueError, TypeError) as e:
+        return jsonify({'error': f'Malformed JSON request: {str(e)}'}), 400
+        
+    except Exception as e:
+        import traceback
+        logger.error(f"Validation and healing error: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 def run(ip="0.0.0.0", p="5001"):

@@ -1,0 +1,6 @@
+apiVersion: v0.1
+workloads:
+  frontend:
+    runtime: podman
+    agent: agent_A
+    runtimeConfig: 'image: docker.io/library/alpine:latest'

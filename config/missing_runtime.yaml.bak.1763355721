@@ -1,0 +1,10 @@
+apiVersion: v0.1
+workloads:
+  nginx:
+    # runtime is missing and should be added by remediator
+    agent: agent_A
+    dependencies: {}
+    runtimeConfig: |
+      image: nginx:latest
+      ports:
+        - 80

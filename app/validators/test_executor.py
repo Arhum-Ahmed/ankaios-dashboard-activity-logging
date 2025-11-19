@@ -128,3 +128,52 @@ class PreDeploymentTester:
         }
         
         return report
+# ----------------------------------------------------------------------
+# Extension: Self-Healing Remediation (Non-intrusive)
+# ----------------------------------------------------------------------
+
+from .config_remediator import ConfigurationRemediator
+
+class SelfHealingPreDeploymentTester(PreDeploymentTester):
+    """
+    Extended version of PreDeploymentTester with optional self-healing remediation.
+    """
+
+    def run_with_remediation(self, config_yaml: str) -> Dict:
+        """
+        Runs full validation suite and attempts automated remediation
+        if any tests fail.
+        Returns:
+            Dict containing original report, remediated config, and remediation log
+        """
+        # 1️⃣ Run original validation
+        base_report = super().run_validation_suite(config_yaml)
+
+        # 2️⃣ Collect all issues from failed tests
+        all_issues = []
+        for test in base_report.get('tests', []):
+            all_issues.extend(test.get('issues', []))
+
+        if base_report['overall_status'] == 'PASSED' or not all_issues:
+            # No remediation needed
+            return {
+                'report': base_report,
+                'remediated_config': config_yaml,
+                'remediation_log': ['No issues detected — remediation not required.']
+            }
+
+        # 3️⃣ Trigger remediation module
+        remediator = ConfigurationRemediator()
+        fixed_yaml, remediation_log = remediator.auto_fix(config_yaml, all_issues)
+
+        # 4️⃣ Re-run the validator on the remediated config
+        post_fix_report = super().run_validation_suite(fixed_yaml)
+
+        # 5️⃣ Combine results
+        return {
+            'initial_report': base_report,
+            'remediated_config': fixed_yaml,
+            'remediation_log': remediation_log,
+            'post_remediation_report': post_fix_report
+        }
+                
