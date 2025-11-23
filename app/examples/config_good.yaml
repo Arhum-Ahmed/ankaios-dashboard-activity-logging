@@ -1,0 +1,16 @@
+workloads:
+  svc1:
+    runtime: podman
+    agent: a1
+    runtimeConfig: 'image: busybox'
+    resources:
+      cpu: 0.1
+      memory: 64
+  svc2:
+    runtime: podman
+    agent: a2
+    depends_on: [svc1]
+    runtimeConfig: 'image: nginx -p 8080:80'
+    resources:
+      cpu: 0.5
+      memory: 256
