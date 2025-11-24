@@ -1,0 +1,32 @@
+{
+  "_meta": {
+    "ts": 1763825074408,
+    "iso_ts": "2025-11-22T15:24:34Z",
+    "sha256": "70df8117be4a504ed0ab4d8c31875dfbf3f0d68ae1698edf224c558a646b0f06"
+  },
+  "config": {
+    "workloads": {
+      "svc1": {
+        "runtime": "podman",
+        "agent": "a1",
+        "runtimeConfig": "image: busybox",
+        "resources": {
+          "cpu": 0.1,
+          "memory": 64
+        }
+      },
+      "svc2": {
+        "runtime": "podman",
+        "agent": "a2",
+        "depends_on": [
+          "svc1"
+        ],
+        "runtimeConfig": "image: nginx -p 8080:80",
+        "resources": {
+          "cpu": 0.5,
+          "memory": 256
+        }
+      }
+    }
+  }
+}

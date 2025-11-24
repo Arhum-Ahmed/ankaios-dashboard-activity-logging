@@ -1,0 +1,17 @@
+workloads:
+  cycle-a:
+    runtime: podman
+    agent: c
+    depends_on: [cycle-b]
+    runtimeConfig: 'image: a'
+    resources:
+      cpu: 0.1
+      memory: 64
+  cycle-b:
+    runtime: podman
+    agent: c
+    depends_on: [cycle-a]
+    runtimeConfig: 'image: b'
+    resources:
+      cpu: 0.1
+      memory: 64
