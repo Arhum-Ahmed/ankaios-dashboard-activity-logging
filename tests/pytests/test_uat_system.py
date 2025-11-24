@@ -9,8 +9,14 @@ import yaml
 import time
 import concurrent.futures
 import os
+import sys
 from typing import Dict, Any
 from pathlib import Path
+# At top of test file
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../app'))
+
+# Then import without 'app.' prefix
+from simulation.deployment_simulator import simulate_deployment, topo_sort
 
 CONFIGS_DIR = Path(__file__).parent.parent / "configs"
 BASE_URL = "http://localhost:5001"
@@ -508,7 +514,159 @@ workloads:
         if data['healed']:
             assert len(data['healing_report']['logs']) > 0
 
-
+    def test_uat_24_simulate_valid_deployment(self):
+        """UAT-24: Simulate Valid Deployment Plan"""
+        workloads = {
+            "frontend": {
+                "depends_on": ["backend"],
+                "resources": {"cpu": 1, "memory": 512}
+            },
+            "backend": {
+                "depends_on": ["database"],
+                "resources": {"cpu": 2, "memory": 1024}
+            },
+            "database": {
+                "depends_on": [],
+                "resources": {"cpu": 2, "memory": 2048}
+            }
+        }
+        
+        result = simulate_deployment(workloads, cluster_capacity={"cpu": 8, "memory": 8192})
+    
+        assert result["success"] == True
+        assert "timeline" in result
+        assert len(result["timeline"]) > 0
+        
+        # Fix: use 'service' not 'workload'
+        events = {ev["service"]: ev for ev in result["timeline"] if ev["event"] == "started"}
+        assert "database" in events
+        assert "backend" in events
+        assert "frontend" in events
+    
+    def test_uat_25_detect_resource_overcommit(self):
+        """UAT-25: Detect Resource Overcommit"""
+        workloads = {
+            "heavy-app": {
+                "depends_on": [],
+                "resources": {"cpu": 10, "memory": 16384}
+            }
+        }
+        
+        result = simulate_deployment(
+            workloads,
+            cluster_capacity={"cpu": 4, "memory": 8192}
+        )
+        
+        assert result["success"] == False
+        assert "issues" in result
+        assert any(
+            issue["type"] == "resource_overcommit" 
+            for issue in result["issues"]
+        )
+    
+    def test_uat_26_detect_circular_dependency_simulation(self):
+        """UAT-26: Detect Circular Dependencies in Simulation"""
+        workloads = {
+            "service-a": {"depends_on": ["service-b"]},
+            "service-b": {"depends_on": ["service-c"]},
+            "service-c": {"depends_on": ["service-a"]}
+        }
+        
+        ok, order, cycles, missing = topo_sort(workloads)
+        
+        assert ok == False
+        assert cycles is not None
+        assert len(cycles) >= 1
+    
+    def test_uat_27_generate_deployment_timeline(self):
+        """UAT-27: Generate Deployment Timeline"""
+        workloads = {
+            "app": {
+                "depends_on": ["cache"],
+                "resources": {"cpu": 1, "memory": 512}
+            },
+            "cache": {
+                "depends_on": [],
+                "resources": {"cpu": 1, "memory": 256}
+            }
+        }
+        
+        result = simulate_deployment(workloads, cluster_capacity={"cpu": 4, "memory": 4096})
+        
+        assert result["success"] == True
+        assert "timeline" in result
+        
+        events = [ev["event"] for ev in result["timeline"]]
+        assert "started" in events
+        
+        # Fix: use 'service' not 'workload'
+        timeline = result["timeline"]
+        cache_start = next(
+            (i for i, ev in enumerate(timeline) 
+            if ev["service"] == "cache" and ev["event"] == "started"),
+            -1
+        )
+        app_start = next(
+            (i for i, ev in enumerate(timeline) 
+            if ev["service"] == "app" and ev["event"] == "started"),
+            -1
+        )
+        assert cache_start < app_start
+    
+    def test_uat_28_simulate_parallel_deployments(self):
+        """UAT-28: Simulate Parallel Deployments"""
+        workloads = {
+            "service-1": {
+                "depends_on": [],
+                "resources": {"cpu": 1, "memory": 256}
+            },
+            "service-2": {
+                "depends_on": [],
+                "resources": {"cpu": 1, "memory": 256}
+            },
+            "service-3": {
+                "depends_on": [],
+                "resources": {"cpu": 1, "memory": 256}
+            }
+        }
+        
+        result = simulate_deployment(
+            workloads,
+            cluster_capacity={"cpu": 8, "memory": 8192}
+        )
+        
+        assert result["success"] == True
+        # All services should be deployable (no dependencies)
+        started_events = [
+            ev for ev in result["timeline"] 
+            if ev["event"] == "started"
+        ]
+        assert len(started_events) == 3
+    
+    def test_uat_29_deployment_plan_report(self):
+        """UAT-29: Deployment Plan Report Generation"""
+        workloads = {
+            "app": {
+                "depends_on": ["db"],
+                "resources": {"cpu": 2, "memory": 1024}
+            },
+            "db": {
+                "depends_on": [],
+                "resources": {"cpu": 2, "memory": 2048}
+            }
+        }
+        
+        result = simulate_deployment(workloads, cluster_capacity={"cpu": 8, "memory": 8192})
+    
+        assert result["success"] == True
+        # Check report structure (fix: use actual response fields)
+        assert "timeline" in result
+        assert "plan_order" in result  # Changed from 'deployment_order'
+        assert "issues" in result  # Changed from checking resource_usage
+        # Check deployment order exists
+        assert len(result["plan_order"]) == 2
+        assert "db" in result["plan_order"]
+        assert "app" in result["plan_order"]
 
 # ============================================================================
 # System Test Cases
@@ -867,3 +1025,107 @@ workloads:
         
         for field in required_fields:
             assert field in data, f"Missing required field: {field}"
+    def test_sys_18_topological_sort_simple(self):
+        """SYS-18: Topological Sort Simple DAG"""
+        workloads = {
+            "a": {"depends_on": ["b"]},
+            "b": {"depends_on": ["c"]},
+            "c": {"depends_on": []}
+        }
+        
+        ok, order, cycles, missing = topo_sort(workloads)
+        
+        assert ok == True
+        assert cycles is None
+        assert set(order) == {"a", "b", "c"}
+        # Verify order: c before b before a
+        assert order.index("c") < order.index("b")
+        assert order.index("b") < order.index("a")
+    
+    def test_sys_19_topological_sort_cycle_detection(self):
+        """SYS-19: Topological Sort Detects Cycles"""
+        workloads = {
+            "a": {"depends_on": ["b"]},
+            "b": {"depends_on": ["a"]}
+        }
+        
+        ok, order, cycles, missing = topo_sort(workloads)
+        
+        assert ok == False
+        assert cycles is not None
+        assert len(cycles) >= 1
+    
+    def test_sys_20_missing_dependency_detection(self):
+        """SYS-20: Missing Dependency Detection"""
+        workloads = {
+            "app": {"depends_on": ["nonexistent-service"]}
+        }
+        
+        ok, order, cycles, missing = topo_sort(workloads)
+        
+        assert ok == False or len(missing) > 0
+        assert "nonexistent-service" in missing
+    
+    def test_sys_21_resource_calculation(self):
+        """SYS-21: Resource Usage Calculation"""
+        workloads = {
+            "app-1": {
+                "depends_on": [],
+                "resources": {"cpu": 2, "memory": 1024}
+            },
+            "app-2": {
+                "depends_on": [],
+                "resources": {"cpu": 3, "memory": 2048}
+            }
+        }
+        
+        result = simulate_deployment(
+            workloads,
+            cluster_capacity={"cpu": 8, "memory": 8192}
+        )
+        
+        assert result["success"] == True
+        
+        # Calculate total from timeline
+        final_events = [ev for ev in result["timeline"] if ev["event"] == "started"]
+        total_cpu = sum(ev["cpu"] for ev in final_events)
+        total_mem = sum(ev["memory"] for ev in final_events)
+        
+        assert total_cpu == 5
+        assert total_mem == 3072
+    
+    def test_sys_22_deployment_order_correctness(self):
+        """SYS-22: Deployment Order Correctness"""
+        workloads = {
+            "frontend": {"depends_on": ["api", "auth"]},
+            "api": {"depends_on": ["database"]},
+            "auth": {"depends_on": ["database"]},
+            "database": {"depends_on": []}
+        }
+        
+        ok, order, cycles, missing = topo_sort(workloads)
+        
+        assert ok == True
+        # Database must come first
+        assert order[0] == "database"
+        # Frontend must come last
+        assert order[-1] == "frontend"
+        # API and auth must come before frontend
+        assert order.index("api") < order.index("frontend")
+        assert order.index("auth") < order.index("frontend")
+    
+    def test_sys_23_simulation_with_no_resources(self):
+        """SYS-23: Simulation with No Resource Specification"""
+        workloads = {
+            "simple-app": {"depends_on": []}
+        }
+        
+        result = simulate_deployment(
+            workloads,
+            cluster_capacity={"cpu": 4, "memory": 4096}
+        )
+        
+        # Should succeed even without resource specs
+        assert result["success"] == True
+        assert "timeline" in result
+        assert len(result["timeline"]) > 0
