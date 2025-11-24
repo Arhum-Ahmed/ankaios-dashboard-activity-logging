@@ -523,9 +523,9 @@ class TestUAT:
         
         assert response.status_code == 200, "Status update should complete successfully"
 
-    def test_uat_01_valid_configuration_acceptance(self, valid_config):
+    def test_uat_12_valid_configuration_acceptance(self, valid_config):
         """
-        UAT-01: Valid Configuration Acceptance
+        UAT-12: Valid Configuration Acceptance
         
         Objective: Verify that a valid configuration passes all checks
         Expected: Status = PASSED, no errors
@@ -538,9 +538,9 @@ class TestUAT:
         assert data['summary']['failed'] == 0, "Should have no failed tests"
         assert data['summary']['total_errors'] == 0, "Should have no errors"
     
-    def test_uat_02_detect_missing_required_fields(self):
+    def test_uat_13_detect_missing_required_fields(self):
         """
-        UAT-02: Detect Missing Required Fields
+        UAT-13: Detect Missing Required Fields
         
         Objective: Verify system catches missing required fields
         Expected: FAILED status, error mentions "runtime is required"
@@ -569,9 +569,9 @@ workloads:
         )
         assert has_runtime_error, "Error should mention missing 'runtime' field"
     
-    def test_uat_03_detect_circular_dependencies(self, circular_dependency_config):
+    def test_uat_14_detect_circular_dependencies(self, circular_dependency_config):
         """
-        UAT-03: Detect Circular Dependencies
+        UAT-14: Detect Circular Dependencies
         
         Objective: Verify circular dependency detection works
         Expected: FAILED status, shows cycle path
@@ -597,9 +597,9 @@ workloads:
         )
         assert has_circular_error, "Should detect circular dependency"
     
-    def test_uat_04_detect_port_conflicts(self):
+    def test_uat_15_detect_port_conflicts(self):
         """
-        UAT-04: Detect Port Conflicts
+        UAT-15: Detect Port Conflicts
         
         Objective: Verify port conflict detection
         Expected: System can detect port conflicts in configurations
@@ -621,9 +621,9 @@ workloads:
         # The test verifies the conflict detection mechanism exists
         assert 'Resource Conflict Detection' in [t['name'] for t in data['tests']]
     
-    def test_uat_05_invalid_yaml_handling(self, invalid_yaml):
+    def test_uat_16_invalid_yaml_handling(self, invalid_yaml):
         """
-        UAT-05: Invalid YAML Handling
+        UAT-16: Invalid YAML Handling
         
         Objective: Verify graceful handling of syntax errors
         Expected: FAILED status, SYNTAX_ERROR type
@@ -644,9 +644,9 @@ workloads:
         )
         assert has_syntax_error, "Should detect YAML syntax error"
     
-    def test_uat_06_missing_dependency_detection(self, missing_dependency_config):
+    def test_uat_17_missing_dependency_detection(self, missing_dependency_config):
         """
-        UAT-06: Missing Dependency Detection
+        UAT-17: Missing Dependency Detection
         
         Objective: Verify detection of non-existent dependencies
         Expected: FAILED status, MISSING_DEPENDENCY error
@@ -673,9 +673,9 @@ workloads:
         )
         assert has_database_ref, "Error should mention 'database' workload"
     
-    def test_uat_07_performance_requirement(self):
+    def test_uat_18_performance_requirement(self):
         """
-        UAT-07: Performance Requirement
+        UAT-18: Performance Requirement
         
         Objective: Verify response time meets requirement
         Expected: Response < 500ms for typical config
@@ -694,9 +694,9 @@ workloads:
         assert response.status_code == 200
         assert duration < 0.5, f"Response took {duration:.3f}s, should be < 0.5s"
     
-    def test_uat_08_api_accessibility(self):
+    def test_uat_19_api_accessibility(self):
         """
-        UAT-08: API Accessibility
+        UAT-19: API Accessibility
         
         Objective: Verify API is accessible without GUI
         Expected: HTTP 200, valid JSON with required fields
@@ -719,8 +719,8 @@ workloads:
         assert isinstance(data['tests'], list), "tests should be an array"
 
     
-    def test_uat_09_cli_validates_before_deployment(self):
-        """UAT-09: CLI Validates Before Deployment (FR-10)"""
+    def test_uat_20_cli_validates_before_deployment(self):
+        """UAT-20: CLI Validates Before Deployment (FR-10)"""
         config = load_config("valid_config.yaml")
         
         # Simulate CLI: call validator before deployment
@@ -730,8 +730,8 @@ workloads:
         assert response.status_code == 200, "API should respond"
         assert data['overall_status'] == 'PASSED', "Valid config should pass"
     
-    def test_uat_10_cli_blocks_invalid_deployment(self):
-        """UAT-10: CLI Blocks Invalid Deployment (FR-11)"""
+    def test_uat_21_cli_blocks_invalid_deployment(self):
+        """UAT-22: CLI Blocks Invalid Deployment (FR-11)"""
         config = load_config("invalid_missing_runtime.yaml")
         
         response = validate_config(config)
@@ -740,8 +740,8 @@ workloads:
         assert response.status_code == 200
         assert data['overall_status'] == 'FAILED', "Should block invalid deployment"
     
-    def test_uat_11_cli_formats_errors_human_readable(self):
-        """UAT-11: CLI Formats Errors in Human-Readable Format (FR-12)"""
+    def test_uat_22_cli_formats_errors_human_readable(self):
+        """UAT-22: CLI Formats Errors in Human-Readable Format (FR-12)"""
         config = load_config("circular_dependency.yaml")
         
         response = validate_config(config)
@@ -756,8 +756,8 @@ workloads:
         for error in errors:
             assert 'type' in error, "Error should have type field"
     
-    def test_uat_12_cli_graceful_degradation_api_unavailable(self):
-        """UAT-12: CLI Graceful Degradation (FR-13)"""
+    def test_uat_23_cli_graceful_degradation_api_unavailable(self):
+        """UAT-23: CLI Graceful Degradation (FR-13)"""
         import requests
         
         # Test that connection errors are detectable
@@ -772,7 +772,8 @@ workloads:
             api_available = False
         
         assert not api_available, "Should detect API unavailability"
-    def test_uat_13_heal_missing_runtime(self):
+    
+    def test_uat_24_heal_missing_runtime(self):
         """UAT-13: Heal Missing Runtime Field"""
         config = """
 workloads:
@@ -788,7 +789,7 @@ workloads:
         assert data['final_valid'] == True
         assert 'runtime' in data['config']
         
-    def test_uat_14_heal_missing_agent(self):
+    def test_uat_25_heal_missing_agent(self):
         """UAT-14: Heal Missing Agent Field"""
         config = """
 workloads:
@@ -804,7 +805,7 @@ workloads:
         assert data['final_valid'] == True
         assert 'agent' in data['config']
     
-    def test_uat_15_heal_multiple_fields(self):
+    def test_uat_26_heal_multiple_fields(self):
         """UAT-15: Heal Multiple Missing Fields"""
         config = """
 workloads:
@@ -819,7 +820,7 @@ workloads:
         # Check healing logs show multiple fixes
         assert len(data['healing_report']['logs']) >= 2
     
-    def test_uat_16_reject_invalid_yaml(self):
+    def test_uat_27_reject_invalid_yaml(self):
         """UAT-16: Reject Invalid YAML"""
         config = """
 workloads:
@@ -835,7 +836,7 @@ workloads:
         assert data['success'] == False
         assert data['final_valid'] == False
     
-    def test_uat_17_reject_circular_dependencies(self):
+    def test_uat_28_reject_circular_dependencies(self):
         """UAT-17: Reject Circular Dependencies"""
         config = """
 workloads:
@@ -859,7 +860,7 @@ workloads:
         assert 'circular' in str(data['validation_report']).lower() or \
                'cycle' in str(data['validation_report']).lower()
     
-    def test_uat_18_revalidation_after_healing(self):
+    def test_uat_29_revalidation_after_healing(self):
         """UAT-18: Re-validation After Healing"""
         config = """
 workloads:
@@ -876,7 +877,7 @@ workloads:
         assert 'validation_report' in data
         assert data['final_valid'] == True  # Changed from 'result' to 'data'
     
-    def test_uat_19_healing_report_generation(self):
+    def test_uat_30_healing_report_generation(self):
         """UAT-19: Healing Report Generation"""
         config = """
 workloads:
@@ -893,7 +894,7 @@ workloads:
         if data['healed']:
             assert len(data['healing_report']['logs']) > 0
 
-    def test_uat_20_simulate_valid_deployment(self):
+    def test_uat_31_simulate_valid_deployment(self):
         """UAT-20: Simulate Valid Deployment Plan"""
         workloads = {
             "frontend": {
@@ -922,7 +923,7 @@ workloads:
         assert "backend" in events
         assert "frontend" in events
     
-    def test_uat_21_detect_resource_overcommit(self):
+    def test_uat_32_detect_resource_overcommit(self):
         """UAT-21: Detect Resource Overcommit"""
         workloads = {
             "heavy-app": {
@@ -943,7 +944,7 @@ workloads:
             for issue in result["issues"]
         )
     
-    def test_uat_22_detect_circular_dependency_simulation(self):
+    def test_uat_33_detect_circular_dependency_simulation(self):
         """UAT-22: Detect Circular Dependencies in Simulation"""
         workloads = {
             "service-a": {"depends_on": ["service-b"]},
@@ -957,7 +958,7 @@ workloads:
         assert cycles is not None
         assert len(cycles) >= 1
     
-    def test_uat_23_generate_deployment_timeline(self):
+    def test_uat_34_generate_deployment_timeline(self):
         """UAT-23: Generate Deployment Timeline"""
         workloads = {
             "app": {
@@ -992,7 +993,7 @@ workloads:
         )
         assert cache_start < app_start
     
-    def test_uat_24_simulate_parallel_deployments(self):
+    def test_uat_35_simulate_parallel_deployments(self):
         """UAT-24: Simulate Parallel Deployments"""
         workloads = {
             "service-1": {
@@ -1022,7 +1023,7 @@ workloads:
         ]
         assert len(started_events) == 3
     
-    def test_uat_25_deployment_plan_report(self):
+    def test_uat_36_deployment_plan_report(self):
         """UAT-25: Deployment Plan Report Generation"""
         workloads = {
             "app": {
@@ -1322,7 +1323,7 @@ class TestSystem:
                 except ValueError:
                     pytest.fail(f"Invalid timestamp format: {log['timestamp']}")
 
-    def test_sys_01_schema_validation_integration(self):
+    def test_sys_13_schema_validation_integration(self):
         """
         SYS-01: Schema Validation Integration
         
@@ -1341,7 +1342,7 @@ workloads:
         assert schema_test is not None
         assert schema_test['status'] == 'FAILED'
     
-    def test_sys_02_dependency_graph_algorithm(self, circular_dependency_config):
+    def test_sys_14_dependency_graph_algorithm(self, circular_dependency_config):
         """
         SYS-02: Dependency Graph Algorithm (DFS-based cycle detection)
         
@@ -1355,7 +1356,7 @@ workloads:
         assert circ_test is not None
         assert circ_test['status'] == 'FAILED'
     
-    def test_sys_03_self_dependency_detection(self, self_dependency_config):
+    def test_sys_15_self_dependency_detection(self, self_dependency_config):
         """
         SYS-03: Self-Dependency Detection
         
@@ -1372,7 +1373,7 @@ workloads:
         )
         assert has_self_dep, "Should detect self-dependency"
     
-    def test_sys_04_invalid_runtime_rejection(self):
+    def test_sys_16_invalid_runtime_rejection(self):
         """
         SYS-04: Invalid Runtime Rejection
         
@@ -1397,7 +1398,7 @@ workloads:
         )
         assert has_runtime_error
     
-    def test_sys_05_concurrent_request_handling(self):
+    def test_sys_17_concurrent_request_handling(self):
         """
         SYS-05: Concurrent Request Handling
         
@@ -1426,7 +1427,7 @@ workloads:
             data = response.json()
             assert 'overall_status' in data
     
-    def test_sys_06_large_configuration_handling(self):
+    def test_sys_18_large_configuration_handling(self):
         """
         SYS-06: Large Configuration Handling
         
@@ -1449,7 +1450,7 @@ workloads:
         data = response.json()
         assert data['overall_status'] == 'PASSED'
     
-    def test_sys_07_empty_configuration(self):
+    def test_sys_19_empty_configuration(self):
         """
         SYS-07: Empty Configuration Handling
         
@@ -1464,7 +1465,7 @@ workloads:
         
         assert response.status_code == 400, "Empty config should return 400"
     
-    def test_sys_08_malformed_json_request(self):
+    def test_sys_20_malformed_json_request(self):
         """
         SYS-08: Malformed JSON Request Handling
         
@@ -1479,7 +1480,7 @@ workloads:
         
         assert response.status_code in [400, 500], "Should reject malformed JSON"
     
-    def test_sys_09_response_structure_validation(self):
+    def test_sys_21_response_structure_validation(self):
         """
         SYS-09: Response Structure Validation
         
@@ -1517,7 +1518,7 @@ workloads:
             assert 'status' in test
             assert 'issues' in test
     
-    def test_sys_10_algorithm_complexity_verification(self):
+    def test_sys_22_algorithm_complexity_verification(self):
         """
         SYS-10: Algorithm Complexity (O(V+E) verification)
         
@@ -1547,7 +1548,7 @@ workloads:
         ratio = results[1][1] / results[0][1]  # 20/10 ratio
         assert 1.2 < ratio < 3.5, f"Time should scale roughly linearly, got {ratio}x"
     
-    def test_sys_11_missing_runtime_autofix(self):
+    def test_sys_23_missing_runtime_autofix(self):
         """SYS-11: Missing Runtime Auto-Fix"""
         config = """
 workloads:
@@ -1562,7 +1563,7 @@ workloads:
         healed_config = yaml.safe_load(data['config'])
         assert healed_config['workloads']['sys-test']['runtime'] == 'podman'
     
-    def test_sys_12_missing_agent_autofix(self):
+    def test_sys_24_missing_agent_autofix(self):
         """SYS-12: Missing Agent Auto-Fix"""
         config = """
 workloads:
@@ -1577,7 +1578,7 @@ workloads:
         healed_config = yaml.safe_load(data['config'])
         assert healed_config['workloads']['sys-test']['agent'] == 'agent_A'
     
-    def test_sys_13_invalid_yaml_rejection(self):
+    def test_sys_25_invalid_yaml_rejection(self):
         """SYS-13: Invalid YAML Rejection"""
         config = "workloads:\n  bad: {runtime podman"  # Invalid syntax
         
@@ -1588,7 +1589,7 @@ workloads:
         assert data['original_valid'] == False
         assert data['final_valid'] == False
     
-    def test_sys_14_circular_dependency_detection(self):
+    def test_sys_26_circular_dependency_detection(self):
         """SYS-14: Circular Dependency Detection"""
         config = """
 workloads:
@@ -1615,7 +1616,7 @@ workloads:
         assert circular_test is not None
         assert circular_test['status'] == 'FAILED'
     
-    def test_sys_15_healing_log_accuracy(self):
+    def test_sys_27_healing_log_accuracy(self):
         """SYS-15: Healing Log Accuracy"""
         config = """
 workloads:
@@ -1632,7 +1633,7 @@ workloads:
         log_text = ' '.join(logs)
         assert 'runtime' in log_text.lower() or 'agent' in log_text.lower()
     
-    def test_sys_16_post_healing_validation(self):
+    def test_sys_28_post_healing_validation(self):
         """SYS-16: Post-Healing Validation"""
         config = """
 workloads:
@@ -1652,7 +1653,7 @@ workloads:
             # Trust final_valid flag over validation_report status
             assert 'final_valid' in data
     
-    def test_sys_17_api_response_structure(self):
+    def test_sys_29_api_response_structure(self):
         """SYS-17: API Response Structure"""
         config = """
 workloads:
@@ -1672,7 +1673,8 @@ workloads:
         
         for field in required_fields:
             assert field in data, f"Missing required field: {field}"
-    def test_sys_18_topological_sort_simple(self):
+    
+    def test_sys_30_topological_sort_simple(self):
         """SYS-18: Topological Sort Simple DAG"""
         workloads = {
             "a": {"depends_on": ["b"]},
@@ -1689,7 +1691,7 @@ workloads:
         assert order.index("c") < order.index("b")
         assert order.index("b") < order.index("a")
     
-    def test_sys_19_topological_sort_cycle_detection(self):
+    def test_sys_31_topological_sort_cycle_detection(self):
         """SYS-19: Topological Sort Detects Cycles"""
         workloads = {
             "a": {"depends_on": ["b"]},
@@ -1702,7 +1704,7 @@ workloads:
         assert cycles is not None
         assert len(cycles) >= 1
     
-    def test_sys_20_missing_dependency_detection(self):
+    def test_sys_32_missing_dependency_detection(self):
         """SYS-20: Missing Dependency Detection"""
         workloads = {
             "app": {"depends_on": ["nonexistent-service"]}
@@ -1713,7 +1715,7 @@ workloads:
         assert ok == False or len(missing) > 0
         assert "nonexistent-service" in missing
     
-    def test_sys_21_resource_calculation(self):
+    def test_sys_33_resource_calculation(self):
         """SYS-21: Resource Usage Calculation"""
         workloads = {
             "app-1": {
@@ -1741,7 +1743,7 @@ workloads:
         assert total_cpu == 5
         assert total_mem == 3072
     
-    def test_sys_22_deployment_order_correctness(self):
+    def test_sys_34_deployment_order_correctness(self):
         """SYS-22: Deployment Order Correctness"""
         workloads = {
             "frontend": {"depends_on": ["api", "auth"]},
@@ -1761,7 +1763,7 @@ workloads:
         assert order.index("api") < order.index("frontend")
         assert order.index("auth") < order.index("frontend")
     
-    def test_sys_23_simulation_with_no_resources(self):
+    def test_sys_35_simulation_with_no_resources(self):
         """SYS-23: Simulation with No Resource Specification"""
         workloads = {
             "simple-app": {"depends_on": []}
