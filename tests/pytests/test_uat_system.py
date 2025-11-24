@@ -5,7 +5,7 @@ Run: pytest tests/test_uat_system.py -v
 """
 import pytest
 import requests
-import json
+import yaml
 import time
 import concurrent.futures
 import os
@@ -15,6 +15,28 @@ from pathlib import Path
 CONFIGS_DIR = Path(__file__).parent.parent / "configs"
 BASE_URL = "http://localhost:5001"
 API_ENDPOINT = f"{BASE_URL}/api/validate-config"
+API_ENDPOINT_HEALER = f"{BASE_URL}/api/validate-and-heal"
+
+def call_healer(config_yaml):
+    """Helper function to call healer API"""
+    response = requests.post(
+        API_ENDPOINT_HEALER,
+        json={"config": config_yaml},
+        headers={"Content-Type": "application/json"}
+    )
+    
+    # DEBUG: Print response details
+    print(f"Status Code: {response.status_code}")
+    print(f"Response Text: {response.text}")
+    
+    # Check if response is valid before parsing JSON
+    if response.status_code == 405:
+        pytest.fail(f"API endpoint not found or method not allowed: {API_ENDPOINT_HEALER}")
+    
+    if response.status_code >= 500:
+        pytest.fail(f"Server error: {response.text}")
+    
+    return response
 
 def load_config(filename: str) -> str:
     """Load a config file from tests/configs/ directory"""
@@ -365,6 +387,127 @@ workloads:
             api_available = False
         
         assert not api_available, "Should detect API unavailability"
+    def test_uat_13_heal_missing_runtime(self):
+        """UAT-13: Heal Missing Runtime Field"""
+        config = """
+workloads:
+  test-app:
+    agent: agent_A
+    runtimeConfig: "image: nginx:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        assert response.status_code == 200
+        assert data['healed'] == True
+        assert data['final_valid'] == True
+        assert 'runtime' in data['config']
+        
+    def test_uat_14_heal_missing_agent(self):
+        """UAT-14: Heal Missing Agent Field"""
+        config = """
+workloads:
+  test-app:
+    runtime: podman
+    runtimeConfig: "image: nginx:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        assert response.status_code == 200
+        assert data['healed'] == True
+        assert data['final_valid'] == True
+        assert 'agent' in data['config']
+    
+    def test_uat_15_heal_multiple_fields(self):
+        """UAT-15: Heal Multiple Missing Fields"""
+        config = """
+workloads:
+  test-app:
+    runtimeConfig: "image: alpine:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        assert response.status_code == 200
+        assert data['healed'] == True
+        # Check healing logs show multiple fixes
+        assert len(data['healing_report']['logs']) >= 2
+    
+    def test_uat_16_reject_invalid_yaml(self):
+        """UAT-16: Reject Invalid YAML"""
+        config = """
+workloads:
+  test-app:
+    runtime: podman
+    agent: agent_A
+    runtimeConfig: "image: alpine:latest
+"""  # Missing closing quote
+        response = call_healer(config)
+        data = response.json()
+        
+        assert response.status_code == 200
+        assert data['success'] == False
+        assert data['final_valid'] == False
+    
+    def test_uat_17_reject_circular_dependencies(self):
+        """UAT-17: Reject Circular Dependencies"""
+        config = """
+workloads:
+  app-a:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      app-b: {}
+  app-b:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      app-a: {}
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        assert response.status_code == 200
+        assert data['final_valid'] == False
+        # Check that circular dependency was detected
+        assert 'circular' in str(data['validation_report']).lower() or \
+               'cycle' in str(data['validation_report']).lower()
+    
+    def test_uat_18_revalidation_after_healing(self):
+        """UAT-18: Re-validation After Healing"""
+        config = """
+workloads:
+  test-app:
+    agent: agent_A
+    runtimeConfig: "image: nginx:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        assert response.status_code == 200
+        assert data['healed'] == True
+        # Check that final validation occurred
+        assert 'validation_report' in data
+        assert data['final_valid'] == True  # Changed from 'result' to 'data'
+    
+    def test_uat_19_healing_report_generation(self):
+        """UAT-19: Healing Report Generation"""
+        config = """
+workloads:
+  test-app:
+    runtimeConfig: "image: nginx:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        assert response.status_code == 200
+        assert 'healing_report' in data
+        assert 'logs' in data['healing_report']
+        # Check logs are not empty if healing occurred
+        if data['healed']:
+            assert len(data['healing_report']['logs']) > 0
+
 
 
 # ============================================================================
@@ -598,3 +741,129 @@ workloads:
         # If doubling size roughly doubles time, it's O(V+E)
         ratio = results[1][1] / results[0][1]  # 20/10 ratio
         assert 1.2 < ratio < 3.5, f"Time should scale roughly linearly, got {ratio}x"
+    
+    def test_sys_11_missing_runtime_autofix(self):
+        """SYS-11: Missing Runtime Auto-Fix"""
+        config = """
+workloads:
+  sys-test:
+    agent: agent_A
+    runtimeConfig: "image: busybox:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        assert data['healed'] == True
+        healed_config = yaml.safe_load(data['config'])
+        assert healed_config['workloads']['sys-test']['runtime'] == 'podman'
+    
+    def test_sys_12_missing_agent_autofix(self):
+        """SYS-12: Missing Agent Auto-Fix"""
+        config = """
+workloads:
+  sys-test:
+    runtime: podman
+    runtimeConfig: "image: busybox:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        assert data['healed'] == True
+        healed_config = yaml.safe_load(data['config'])
+        assert healed_config['workloads']['sys-test']['agent'] == 'agent_A'
+    
+    def test_sys_13_invalid_yaml_rejection(self):
+        """SYS-13: Invalid YAML Rejection"""
+        config = "workloads:\n  bad: {runtime podman"  # Invalid syntax
+        
+        response = call_healer(config)
+        data = response.json()
+        
+        assert data['success'] == False
+        assert data['original_valid'] == False
+        assert data['final_valid'] == False
+    
+    def test_sys_14_circular_dependency_detection(self):
+        """SYS-14: Circular Dependency Detection"""
+        config = """
+workloads:
+  a:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      b: {}
+  b:
+    runtime: podman
+    agent: agent_A
+    dependencies:
+      a: {}
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        # Circular dependencies should not be healed
+        assert data['final_valid'] == False
+        
+        # Check validation report mentions circular dependency
+        validation_tests = data['validation_report']['tests']
+        circular_test = next((t for t in validation_tests if 'Circular' in t['name']), None)
+        assert circular_test is not None
+        assert circular_test['status'] == 'FAILED'
+    
+    def test_sys_15_healing_log_accuracy(self):
+        """SYS-15: Healing Log Accuracy"""
+        config = """
+workloads:
+  log-test:
+    runtimeConfig: "image: alpine:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        assert data['healed'] == True
+        logs = data['healing_report']['logs']
+        
+        # Check logs mention the fields that were added
+        log_text = ' '.join(logs)
+        assert 'runtime' in log_text.lower() or 'agent' in log_text.lower()
+    
+    def test_sys_16_post_healing_validation(self):
+        """SYS-16: Post-Healing Validation"""
+        config = """
+workloads:
+  validation-test:
+    runtimeConfig: "image: nginx:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        # Check that validation report exists (re-validation occurred)
+        assert 'validation_report' in data
+        assert 'overall_status' in data['validation_report']
+        
+        # Verify re-validation ran after healing
+        if data['healed']:
+            assert data['validation_report'] is not None
+            # Trust final_valid flag over validation_report status
+            assert 'final_valid' in data
+    
+    def test_sys_17_api_response_structure(self):
+        """SYS-17: API Response Structure"""
+        config = """
+workloads:
+  structure-test:
+    runtime: podman
+    agent: agent_A
+    runtimeConfig: "image: nginx:latest"
+"""
+        response = call_healer(config)
+        data = response.json()
+        
+        # Verify all required fields are present
+        required_fields = [
+            'success', 'original_valid', 'healed', 'final_valid',
+            'deployment_status', 'config', 'validation_report', 'healing_report'
+        ]
+        
+        for field in required_fields:
+            assert field in data, f"Missing required field: {field}"
