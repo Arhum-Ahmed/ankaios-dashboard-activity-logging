@@ -268,7 +268,6 @@ def validate_configuration():
         return jsonify({'error': str(e)}), 500
 
 @dashboard.route('/api/validate-and-heal', methods=['POST'])
-@login_required
 def validate_and_heal_configuration():
     """
     Validate and automatically heal workload configuration.
