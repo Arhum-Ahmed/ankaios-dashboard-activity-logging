@@ -514,8 +514,8 @@ workloads:
         if data['healed']:
             assert len(data['healing_report']['logs']) > 0
 
-    def test_uat_24_simulate_valid_deployment(self):
-        """UAT-24: Simulate Valid Deployment Plan"""
+    def test_uat_20_simulate_valid_deployment(self):
+        """UAT-20: Simulate Valid Deployment Plan"""
         workloads = {
             "frontend": {
                 "depends_on": ["backend"],
@@ -543,8 +543,8 @@ workloads:
         assert "backend" in events
         assert "frontend" in events
     
-    def test_uat_25_detect_resource_overcommit(self):
-        """UAT-25: Detect Resource Overcommit"""
+    def test_uat_21_detect_resource_overcommit(self):
+        """UAT-21: Detect Resource Overcommit"""
         workloads = {
             "heavy-app": {
                 "depends_on": [],
@@ -564,8 +564,8 @@ workloads:
             for issue in result["issues"]
         )
     
-    def test_uat_26_detect_circular_dependency_simulation(self):
-        """UAT-26: Detect Circular Dependencies in Simulation"""
+    def test_uat_22_detect_circular_dependency_simulation(self):
+        """UAT-22: Detect Circular Dependencies in Simulation"""
         workloads = {
             "service-a": {"depends_on": ["service-b"]},
             "service-b": {"depends_on": ["service-c"]},
@@ -578,8 +578,8 @@ workloads:
         assert cycles is not None
         assert len(cycles) >= 1
     
-    def test_uat_27_generate_deployment_timeline(self):
-        """UAT-27: Generate Deployment Timeline"""
+    def test_uat_23_generate_deployment_timeline(self):
+        """UAT-23: Generate Deployment Timeline"""
         workloads = {
             "app": {
                 "depends_on": ["cache"],
@@ -613,8 +613,8 @@ workloads:
         )
         assert cache_start < app_start
     
-    def test_uat_28_simulate_parallel_deployments(self):
-        """UAT-28: Simulate Parallel Deployments"""
+    def test_uat_24_simulate_parallel_deployments(self):
+        """UAT-24: Simulate Parallel Deployments"""
         workloads = {
             "service-1": {
                 "depends_on": [],
@@ -643,8 +643,8 @@ workloads:
         ]
         assert len(started_events) == 3
     
-    def test_uat_29_deployment_plan_report(self):
-        """UAT-29: Deployment Plan Report Generation"""
+    def test_uat_25_deployment_plan_report(self):
+        """UAT-25: Deployment Plan Report Generation"""
         workloads = {
             "app": {
                 "depends_on": ["db"],
