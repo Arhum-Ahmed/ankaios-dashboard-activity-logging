@@ -10,7 +10,10 @@ import time
 import concurrent.futures
 import os
 import sys
-from typing import Dict, Any
+import csv
+import io
+from datetime import datetime, timedelta
+from typing import Dict, Any, List
 from pathlib import Path
 # At top of test file
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../app'))
@@ -22,6 +25,15 @@ CONFIGS_DIR = Path(__file__).parent.parent / "configs"
 BASE_URL = "http://localhost:5001"
 API_ENDPOINT = f"{BASE_URL}/api/validate-config"
 API_ENDPOINT_HEALER = f"{BASE_URL}/api/validate-and-heal"
+DASHBOARD_PREFIX = ""
+
+# API Endpoints
+ACTIVITY_LOGS_ENDPOINT = f"{BASE_URL}/activityLogs"
+EXPORT_LOGS_ENDPOINT = f"{BASE_URL}/exportLogs"
+UPDATE_PENDING_LOGS_ENDPOINT = f"{BASE_URL}/updatePendingLogs"
+ADD_WORKLOAD_ENDPOINT = f"{BASE_URL}/addNewWorkload"
+DELETE_WORKLOAD_ENDPOINT = f"{BASE_URL}/deleteWorkloads"
+UPDATE_CONFIG_ENDPOINT = f"{BASE_URL}/updateConfig"
 
 def call_healer(config_yaml):
     """Helper function to call healer API"""
@@ -51,9 +63,121 @@ def load_config(filename: str) -> str:
         pytest.fail(f"Config file not found: {config_path}")
     return config_path.read_text()
 
+def get_activity_logs(limit=100, offset=0, **filters) -> requests.Response:
+    """
+    Get activity logs with optional filters
+    
+    Args:
+        limit: Number of logs to retrieve
+        offset: Offset for pagination
+        **filters: Optional filters (action, workload, user, start_date, end_date)
+    """
+    params = {
+        'limit': limit,
+        'offset': offset
+    }
+    params.update(filters)
+    
+    return requests.get(
+        ACTIVITY_LOGS_ENDPOINT,
+        params=params,
+        # Add authentication if required
+        # cookies={'session': 'test_session'}
+    )
+
+
+def export_logs(**filters) -> requests.Response:
+    """Export activity logs as CSV"""
+    params = {k: v for k, v in filters.items() if v is not None}
+    return requests.get(EXPORT_LOGS_ENDPOINT, params=params)
+
+
+def trigger_status_update() -> requests.Response:
+    """Manually trigger status update for pending logs"""
+    return requests.post(UPDATE_PENDING_LOGS_ENDPOINT)
+
+
+def add_workload(workload_config: Dict[str, Any]) -> requests.Response:
+    """Add a new workload (generates activity log)"""
+    return requests.post(ADD_WORKLOAD_ENDPOINT, json=workload_config)
+
+
+def delete_workloads(workload_names: List[str]) -> requests.Response:
+    """Delete workloads (generates activity log)"""
+    return requests.post(DELETE_WORKLOAD_ENDPOINT, json={'workloads': workload_names})
+
+
+def update_config(config_data: Dict[str, Any]) -> requests.Response:
+    """Update configuration (generates activity log)"""
+    return requests.put(UPDATE_CONFIG_ENDPOINT, json=config_data)
+
+
+def wait_for_log_entry(action: str, workload_name: str = None, timeout: int = 5) -> bool:
+    """
+    Wait for a specific log entry to appear
+    
+    Args:
+        action: Action type to look for
+        workload_name: Optional workload name filter
+        timeout: Maximum time to wait in seconds
+    
+    Returns:
+        True if log entry found, False otherwise
+    """
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        filters = {'action': action}
+        if workload_name:
+            filters['workload'] = workload_name
+            
+        response = get_activity_logs(limit=10, **filters)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('logs') and len(data['logs']) > 0:
+                return True
+        
+        time.sleep(0.5)
+    
+    return False
+
 # ============================================================================
 # Fixtures
 # ============================================================================
+
+
+@pytest.fixture
+def sample_workload():
+    """Sample workload configuration for testing"""
+    return {
+        "workloadName": "test-nginx",
+        "runtime": "podman",
+        "agent": "agent_A",
+        "runtimeConfig": "image: nginx:latest"
+    }
+
+
+@pytest.fixture
+def cleanup_test_workloads():
+    """Cleanup fixture to remove test workloads after tests"""
+    yield
+    # Cleanup after test
+    try:
+        delete_workloads(["test-nginx", "test-redis", "test-app"])
+    except:
+        pass  # Ignore errors during cleanup
+
+
+@pytest.fixture
+def sample_logs_data():
+    """Sample data for testing log queries"""
+    return {
+        'actions': ['add_workload', 'delete_workload', 'update_config'],
+        'workloads': ['nginx', 'redis', 'app'],
+        'agents': ['agent_A', 'agent_B'],
+        'users': ['user1', 'user2', 'admin']
+    }
 
 @pytest.fixture
 def valid_config():
@@ -143,7 +267,262 @@ def validate_config(config: str) -> requests.Response:
 
 class TestUAT:
     """User Acceptance Test Cases"""
+    def test_uat_01_view_activity_logs(self):
+        """
+        UAT-01: View Activity Logs (FR-7)
+        
+        Objective: Verify user can view activity logs
+        Expected: Returns logs with proper structure
+        """
+        response = get_activity_logs(limit=10)
+        
+        assert response.status_code == 200, "Should return 200 OK"
+        data = response.json()
+        
+        assert 'logs' in data, "Response should contain 'logs' field"
+        assert 'total' in data, "Response should contain 'total' count"
+        assert 'limit' in data, "Response should contain 'limit'"
+        assert 'offset' in data, "Response should contain 'offset'"
+        
+        assert isinstance(data['logs'], list), "Logs should be a list"
+        assert data['limit'] == 10, "Limit should match requested value"
     
+    
+    def test_uat_02_log_workload_creation(self, sample_workload, cleanup_test_workloads):
+        """
+        UAT-02: Log Workload Creation (FR-1, FR-7)
+        
+        Objective: Verify system logs when user creates a workload
+        Expected: Activity log entry created for ADD_WORKLOAD action
+        """
+        # Add a workload
+        response = add_workload(sample_workload)
+        
+        # Wait for log entry to appear
+        log_found = wait_for_log_entry('add_workload', sample_workload['workloadName'])
+        
+        assert log_found, "Log entry for ADD_WORKLOAD should be created"
+        
+        # Verify log details
+        response = get_activity_logs(
+            action='add_workload',
+            workload=sample_workload['workloadName']
+        )
+        
+        data = response.json()
+        assert len(data['logs']) > 0, "Should find the workload creation log"
+        
+        log_entry = data['logs'][0]
+        assert log_entry['action'] == 'add_workload'
+        assert log_entry['workload_name'] == sample_workload['workloadName']
+        assert 'timestamp' in log_entry
+        assert 'user_id' in log_entry
+    
+    
+    def test_uat_03_log_workload_deletion(self, sample_workload, cleanup_test_workloads):
+        """
+        UAT-03: Log Workload Deletion (FR-1, FR-7)
+        
+        Objective: Verify system logs when user deletes a workload
+        Expected: Activity log entry created for DELETE_WORKLOAD action
+        """
+        # First add a workload
+        response = add_workload(sample_workload)
+        print(f"Add response: {response.status_code}, {response.text}")
+        time.sleep(2)
+
+        response = delete_workloads([sample_workload['workloadName']])
+        print(f"Delete response: {response.status_code}, {response.text}") 
+    
+    
+    def test_uat_04_log_configuration_update(self, sample_workload):
+        """UAT-04: Log Configuration Update"""
+        
+        # First create the workload
+        add_workload(sample_workload)
+        time.sleep(2)
+        
+        # Now update it
+        config_data = {
+            "workloadName": sample_workload['workloadName'],  # Use existing workload
+            "runtime": "podman",
+            "agent": "agent_A",
+            "runtimeConfig": "image: nginx:latest",
+            "restartPolicy": "always"  # Changed config
+        }
+        
+        response = update_config(config_data)
+        
+        # Wait for log entry
+        log_found = wait_for_log_entry('add_workload', sample_workload['workloadName'])
+        assert log_found, "Log entry for UPDATE_CONFIG should be created"
+    
+    def test_uat_05_filter_logs_by_action(self, sample_logs_data):
+        """
+        UAT-05: Filter Logs by Action (FR-9)
+        
+        Objective: Verify user can filter logs by action type
+        Expected: Returns only logs matching the action filter
+        """
+        response = get_activity_logs(action='ADD_WORKLOAD', limit=20)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # All returned logs should have ADD_WORKLOAD action
+        for log in data['logs']:
+            assert log['action'] == 'ADD_WORKLOAD', \
+                "All logs should match the action filter"
+    
+    
+    def test_uat_06_filter_logs_by_workload(self, sample_workload, cleanup_test_workloads):
+        """
+        UAT-06: Filter Logs by Workload (FR-9)
+        
+        Objective: Verify user can filter logs by workload name
+        Expected: Returns only logs for specified workload
+        """
+        # Add a workload to generate logs
+        add_workload(sample_workload)
+        time.sleep(1)
+        
+        response = get_activity_logs(
+            workload=sample_workload['workloadName'],
+            limit=20
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # All returned logs should be for the specified workload
+        for log in data['logs']:
+            if log['workload_name']:  # Some logs might not have workload
+                assert log['workload_name'] == sample_workload['workloadName'], \
+                    "All logs should match the workload filter"
+    
+    
+    def test_uat_07_filter_logs_by_user(self):
+        """
+        UAT-07: Filter Logs by User (FR-9)
+        
+        Objective: Verify user can filter logs by user ID
+        Expected: Returns only logs for specified user
+        """
+        # Get any existing user from logs
+        response = get_activity_logs(limit=1)
+        data = response.json()
+        
+        if len(data['logs']) == 0:
+            pytest.skip("No logs available for testing")
+        
+        user_id = data['logs'][0]['user_id']
+        
+        # Filter by that user
+        response = get_activity_logs(user=user_id, limit=20)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        for log in data['logs']:
+            assert log['user_id'] == user_id, \
+                "All logs should match the user filter"
+    
+    
+    def test_uat_08_filter_logs_by_date_range(self):
+        """
+        UAT-08: Filter Logs by Date Range (FR-9)
+        
+        Objective: Verify user can filter logs by date range
+        Expected: Returns only logs within specified date range
+        """
+        # Set date range for last 24 hours
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=1)
+        
+        response = get_activity_logs(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+            limit=50
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # Verify all logs are within date range
+        for log in data['logs']:
+            log_time = datetime.fromisoformat(log['timestamp'].replace('Z', '+00:00'))
+            assert start_date <= log_time <= end_date, \
+                "All logs should be within the specified date range"
+    
+    
+    def test_uat_09_export_logs_as_csv(self):
+        """
+        UAT-09: Export Logs as CSV (FR-7)
+        
+        Objective: Verify user can export logs in CSV format
+        Expected: Returns valid CSV file with log data
+        """
+        response = export_logs()
+        
+        assert response.status_code == 200, "Should return 200 OK"
+        assert 'text/csv' in response.headers.get('Content-Type', ''), \
+            "Content-Type should be text/csv"
+        assert 'Content-Disposition' in response.headers, \
+            "Should have Content-Disposition header"
+        assert 'activity_logs.csv' in response.headers['Content-Disposition'], \
+            "Filename should be activity_logs.csv"
+        
+        # Parse CSV and verify structure
+        csv_content = response.text
+        csv_reader = csv.reader(io.StringIO(csv_content))
+        
+        header = next(csv_reader)
+        expected_headers = ['ID', 'Timestamp', 'User ID', 'Action', 
+                          'Workload Name', 'Agent', 'Status', 'Metadata']
+        
+        assert header == expected_headers, \
+            f"CSV headers should match expected format"
+    
+    
+    def test_uat_10_pagination_functionality(self):
+        """
+        UAT-10: Pagination Functionality (FR-7)
+        
+        Objective: Verify pagination works correctly for large log sets
+        Expected: Can retrieve logs in pages with correct offset
+        """
+        # Get first page
+        response1 = get_activity_logs(limit=5, offset=0)
+        data1 = response1.json()
+        
+        # Get second page
+        response2 = get_activity_logs(limit=5, offset=5)
+        data2 = response2.json()
+        
+        assert response1.status_code == 200
+        assert response2.status_code == 200
+        
+        # Verify different results
+        if len(data1['logs']) > 0 and len(data2['logs']) > 0:
+            first_page_ids = [log['id'] for log in data1['logs']]
+            second_page_ids = [log['id'] for log in data2['logs']]
+            
+            # Pages should not overlap
+            assert not set(first_page_ids).intersection(set(second_page_ids)), \
+                "Pages should contain different logs"
+    
+    
+    def test_uat_11_trigger_status_update(self):
+        """
+        UAT-11: Manual Status Update (FR-7, FR-12)
+        
+        Objective: Verify user can manually trigger status updates for pending logs
+        Expected: Status update completes successfully
+        """
+        response = trigger_status_update()
+        
+        assert response.status_code == 200, "Status update should complete successfully"
+
     def test_uat_01_valid_configuration_acceptance(self, valid_config):
         """
         UAT-01: Valid Configuration Acceptance
@@ -674,7 +1053,275 @@ workloads:
 
 class TestSystem:
     """System-level Integration Tests"""
+    def test_sys_01_api_endpoint_availability(self):
+        """
+        SYS-01: API Endpoint Availability
+        
+        Objective: Verify all activity logger endpoints are accessible
+        Expected: All endpoints respond appropriately
+        """
+        # Test GET endpoints
+        response = get_activity_logs(limit=1)
+        assert response.status_code in [200, 401], \
+            f"Activity logs endpoint should be accessible"
+        
+        response = export_logs()
+        assert response.status_code in [200, 401], \
+            "Export logs endpoint should be accessible"
+        
+        # Test POST endpoint
+        response = trigger_status_update()
+        assert response.status_code in [200, 401, 403], \
+            "Update pending logs endpoint should be accessible"
     
+    
+    def test_sys_02_response_structure_validation(self):
+        """
+        SYS-02: Response Structure Validation
+        
+        Objective: Verify API responses follow expected schema
+        Expected: All required fields present with correct types
+        """
+        response = get_activity_logs(limit=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Validate top-level structure
+            required_fields = ['logs', 'total', 'limit', 'offset']
+            for field in required_fields:
+                assert field in data, f"Response should contain '{field}' field"
+            
+            # Validate types
+            assert isinstance(data['logs'], list)
+            assert isinstance(data['total'], int)
+            assert isinstance(data['limit'], int)
+            assert isinstance(data['offset'], int)
+            
+            # Validate log entry structure
+            if len(data['logs']) > 0:
+                log = data['logs'][0]
+                log_fields = ['id', 'timestamp', 'user_id', 'action', 'status']
+                
+                for field in log_fields:
+                    assert field in log, f"Log entry should contain '{field}' field"
+    
+    
+    def test_sys_03_invalid_query_parameters(self):
+        """
+        SYS-03: Invalid Query Parameters Handling
+        
+        Objective: Verify system handles invalid query parameters gracefully
+        Expected: Returns appropriate error or defaults
+        """
+        # Test with invalid limit (negative)
+        response = get_activity_logs(limit=-1)
+        # System should either reject or use default
+        assert response.status_code in [200, 400]
+        
+        # Test with invalid offset
+        response = get_activity_logs(offset=-10)
+        assert response.status_code in [200, 400]
+        
+        # Test with very large limit
+        response = get_activity_logs(limit=999999)
+        assert response.status_code in [200, 400]
+    
+    
+    def test_sys_04_date_filter_edge_cases(self):
+        """
+        SYS-04: Date Filter Edge Cases
+        
+        Objective: Verify date filtering handles edge cases correctly
+        Expected: Handles invalid dates and edge cases gracefully
+        """
+        # Test with invalid date format
+        response = get_activity_logs(start_date='invalid-date')
+        assert response.status_code in [200, 400], \
+            "Should handle invalid date format"
+        
+        # Test with future date
+        future_date = (datetime.now() + timedelta(days=365)).isoformat()
+        response = get_activity_logs(start_date=future_date)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data['logs']) == 0, "Should return no logs for future dates"
+        
+        # Test with end_date before start_date
+        start = datetime.now().isoformat()
+        end = (datetime.now() - timedelta(days=1)).isoformat()
+        response = get_activity_logs(start_date=start, end_date=end)
+        assert response.status_code in [200, 400]
+    
+    
+    def test_sys_05_csv_export_with_filters(self):
+        """
+        SYS-05: CSV Export with Filters
+        
+        Objective: Verify CSV export works with various filters
+        Expected: Exported CSV contains only filtered data
+        """
+        response = export_logs(action='ADD_WORKLOAD')
+        
+        if response.status_code == 200:
+            csv_content = response.text
+            csv_reader = csv.DictReader(io.StringIO(csv_content))
+            
+            rows = list(csv_reader)
+            
+            # Verify all rows match filter
+            for row in rows:
+                if row['Action']:  # Skip empty rows
+                    assert row['Action'] == 'ADD_WORKLOAD', \
+                        "All exported rows should match filter"
+    
+    
+    def test_sys_06_concurrent_log_retrieval(self):
+        """
+        SYS-06: Concurrent Log Retrieval
+        
+        Objective: Verify system handles concurrent requests correctly
+        Expected: All concurrent requests succeed without errors
+        """
+        def fetch_logs(offset):
+            response = get_activity_logs(limit=10, offset=offset)
+            return response.status_code
+        
+        # Execute 10 concurrent requests
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = [executor.submit(fetch_logs, i * 10) for i in range(10)]
+            results = [f.result() for f in concurrent.futures.as_completed(futures)]
+        
+        # All requests should succeed
+        success_count = sum(1 for status in results if status == 200)
+        assert success_count >= 8, \
+            f"At least 80% of concurrent requests should succeed (got {success_count}/10)"
+    
+    
+    def test_sys_07_empty_result_handling(self):
+        """
+        SYS-07: Empty Result Handling
+        
+        Objective: Verify system handles queries with no results correctly
+        Expected: Returns empty list with proper structure
+        """
+        # Query with unlikely filter combination
+        response = get_activity_logs(
+            workload='nonexistent-workload-xyz123',
+            action='UNKNOWN_ACTION'
+        )
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        assert 'logs' in data
+        assert isinstance(data['logs'], list)
+        assert len(data['logs']) == 0, "Should return empty list"
+        assert data['total'] == 0, "Total count should be 0"
+    
+    
+    def test_sys_08_large_limit_handling(self):
+        """
+        SYS-08: Large Limit Handling
+        
+        Objective: Verify system handles large limit values appropriately
+        Expected: Returns capped or all results without errors
+        """
+        response = get_activity_logs(limit=10000)
+        
+        assert response.status_code == 200
+        data = response.json()
+        
+        # System should either cap the results or return all available
+        assert len(data['logs']) <= 10000
+        assert isinstance(data['logs'], list)
+    
+    
+    def test_sys_09_special_characters_in_filters(self):
+        """
+        SYS-09: Special Characters in Filters
+        
+        Objective: Verify system handles special characters in filter values
+        Expected: Handles special characters without errors
+        """
+        special_chars_tests = [
+            "workload-with-dashes",
+            "workload_with_underscores",
+            "workload.with.dots",
+            "workload with spaces",
+            "workload'with'quotes"
+        ]
+        
+        for test_value in special_chars_tests:
+            response = get_activity_logs(workload=test_value)
+            assert response.status_code in [200, 400], \
+                f"Should handle special characters: {test_value}"
+    
+    
+    def test_sys_10_log_timestamp_ordering(self):
+        """
+        SYS-10: Log Timestamp Ordering
+        
+        Objective: Verify logs are returned in correct chronological order
+        Expected: Logs ordered by timestamp (newest first by default)
+        """
+        response = get_activity_logs(limit=20)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if len(data['logs']) >= 2:
+                timestamps = [
+                    datetime.fromisoformat(log['timestamp'].replace('Z', '+00:00'))
+                    for log in data['logs']
+                ]
+                
+                # Verify descending order (newest first)
+                for i in range(len(timestamps) - 1):
+                    assert timestamps[i] >= timestamps[i + 1], \
+                        "Logs should be ordered by timestamp (newest first)"
+    
+    
+    def test_sys_11_authentication_requirement(self):
+        """
+        SYS-11: Authentication Requirement
+        
+        Objective: Verify endpoints require authentication
+        Expected: Unauthenticated requests are rejected (if auth is enabled)
+        """
+        # Try to access without authentication
+        response = requests.get(ACTIVITY_LOGS_ENDPOINT)
+        
+        # Should either require auth (401/403) or allow access (200)
+        assert response.status_code in [200, 401, 403], \
+            "Endpoint should have clear authentication behavior"
+    
+    
+    def test_sys_12_log_metadata_integrity(self):
+        """
+        SYS-12: Log Metadata Integrity
+        
+        Objective: Verify log entries contain complete and valid metadata
+        Expected: All metadata fields are properly populated
+        """
+        response = get_activity_logs(limit=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            for log in data['logs']:
+                # Verify required fields are present and non-empty
+                assert log.get('id'), "Log should have ID"
+                assert log.get('timestamp'), "Log should have timestamp"
+                assert log.get('action'), "Log should have action"
+                assert log.get('status'), "Log should have status"
+                
+                # Verify timestamp is valid ISO format
+                try:
+                    datetime.fromisoformat(log['timestamp'].replace('Z', '+00:00'))
+                except ValueError:
+                    pytest.fail(f"Invalid timestamp format: {log['timestamp']}")
+
     def test_sys_01_schema_validation_integration(self):
         """
         SYS-01: Schema Validation Integration

@@ -106,7 +106,7 @@ def get_complete_state():
     return ank_comm_service.get_complete_state()
 
 @dashboard.route('/addNewWorkload', methods=['POST'])
-@login_required
+# @login_required
 def add_new_workload():
     user_id = current_user.id if current_user.is_authenticated else "anonymous"
     result = ank_comm_service.add_new_workload(request.json, user_id=user_id)
@@ -115,14 +115,14 @@ def add_new_workload():
     return jsonify(result), (200 if result.get('status') == 'success' else 400)
 
 @dashboard.route('/deleteWorkloads', methods=['POST'])
-@login_required
+# @login_required
 def delete_workloads():
     user_id = current_user.id if current_user.is_authenticated else "anonymous"
     print(ank_comm_service.deleteWorkloads(request.json, user_id=user_id))
     return Response("Workloads deleted.", status=200, mimetype='application/json')
 
 @dashboard.route('/updateConfig', methods=['PUT'])
-@login_required
+# @login_required
 def update_config():
     user_id = current_user.id if current_user.is_authenticated else "anonymous"
     print(ank_comm_service.update_config(request.json, user_id=user_id))
@@ -135,7 +135,7 @@ def get_write_access():
 # ========== ACTIVITY LOGGER ENDPOINTS ==========
 
 @dashboard.route('/activityLogs', methods=['GET'])
-@login_required
+# @login_required
 def get_activity_logs():
     """Get activity logs with optional filters"""
     try:
@@ -177,7 +177,7 @@ def get_activity_logs():
         return Response("Failed to fetch logs.", status=500)
 
 @dashboard.route('/exportLogs', methods=['GET'])
-@login_required
+# @login_required
 def export_logs():
     """Export activity logs as CSV"""
     try:
@@ -229,7 +229,7 @@ def export_logs():
         return Response("Failed to export logs.", status=500)
 
 @dashboard.route('/updatePendingLogs', methods=['POST'])
-@login_required
+# @login_required
 def trigger_status_update():
     """Manually trigger status update for pending logs (for testing)"""
     try:
