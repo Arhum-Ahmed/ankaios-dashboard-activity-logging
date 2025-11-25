@@ -196,6 +196,8 @@ app/
 │   ├── schema_validator.py
 │   ├── dependency_validator.py       # DFS cycle detection
 │   ├── conflict_detector.py
+│   ├── deployment_validator.py       
+│   ├── config_remidator.py           # Auto Healer
 │   └── test_executor.py
 ├── AnkCommunicationService.py         # Modified for logging
 └── DashboardAPI.py                  # REST endpoints
