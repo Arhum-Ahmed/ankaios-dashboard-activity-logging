@@ -12,6 +12,8 @@ This project extends the Eclipse Ankaios Dashboard with two major features:
 
 1. **Activity Logger** - Tracks all workload operations with SQLite persistence
 2. **Configuration Validator** - Pre-deployment validation using graph algorithms (DFS-based cycle detection)
+3. **Configuration Healer** - Auto-fixes configuration errors before deployment
+4. **Rollback Simulator** - Test configurations without actual deployment
 
 ---
 
