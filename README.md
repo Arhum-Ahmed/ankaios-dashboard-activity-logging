@@ -204,7 +204,11 @@ app/
 │   ├── deployment_simulator.py       # DFS cycle detection
 │   ├── rollback_manager.py           # retore snapshot
 │   └── validator_service.py          
-
+├── eamples/                        # pass and fail config files
+│   ├── config_cycle.yaml                        
+│   ├── config_fail_ports.yaml       
+│   ├── config_fail_schema.yaml          
+│   └── config_good.yaml
 tests/
 ├── pytests/
 │   ├── test_uat_system.py            # Functional & UAT tests
@@ -239,3 +243,4 @@ tests/
 
 
 ---
+
