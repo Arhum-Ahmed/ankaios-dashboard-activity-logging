@@ -198,14 +198,22 @@ app/
 │   ├── conflict_detector.py
 │   └── test_executor.py
 ├── AnkCommunicationService.py         # Modified for logging
-└── DashboardAPI.py                    # REST endpoints
+└── DashboardAPI.py                  # REST endpoints
+├── simulation/                        # deployment simulator and rollback
+│   ├── cli.py                        
+│   ├── deployment_simulator.py       # DFS cycle detection
+│   ├── rollback_manager.py           # retore snapshot
+│   └── validator_service.py          
 
 tests/
 ├── pytests/
 │   ├── test_uat_system.py            # Functional & UAT tests
 │   └── perf_benchmark.py             # Performance benchmarks
 └── locust/
-    └── locustfile.py                 # Load testing
+|   └── locustfile.py                 # Load testing
+├── deployment/
+│   ├── test_rollback.py            # unit test for rollback
+│   └── test_simulator.py           # unit test for simulator
 ```
 
 ---
@@ -228,5 +236,6 @@ tests/
 - Parnia Azam Sadeghi (100989023)
 - Revathi Sekar (100948672)
 - Shivam Patel (101003473)
+
 
 ---
