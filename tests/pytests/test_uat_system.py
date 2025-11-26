@@ -749,6 +749,211 @@ workloads:
 class TestSystem:
     """System-level Integration Tests"""
     
+    
+
+    def test_sys_01_workload_lifecycle(self, system, sample_workload_name):
+        """
+        SYS-01: Workload lifecycle operations
+        
+        Test: Start, stop, delete workload
+        Expected: Status changes and delete removes workload
+        """
+        system.start_workload(sample_workload_name)
+        status = system.get_workload_status(sample_workload_name)
+        assert status["state"] == "running"
+
+        system.stop_workload(sample_workload_name)
+        status = system.get_workload_status(sample_workload_name)
+        assert status["state"] in {"stopped", "exited"}
+
+        system.delete_workload(sample_workload_name)
+        with pytest.raises(Exception):
+            system.get_workload_status(sample_workload_name)
+
+
+    def test_sys_02_add_agents(self, system, sample_agent_ids):
+        """
+        SYS-02: Agent registration
+        
+        Test: Add an agent to a node
+        Expected: Agent appears in agent registry
+        """
+        node_id, agent_id = sample_agent_ids
+        system.add_agent(node_id=node_id, agent_id=agent_id)
+
+        agents = system.list_agents()
+        assert any(a["id"] == agent_id for a in agents)
+
+
+    def test_sys_03_add_container_runtime(self, system):
+        """
+        SYS-03: Container runtime extensibility
+        
+        Test: Add Docker runtime
+        Expected: Runtime list contains Docker and Podman
+        """
+        system.add_container_runtime("docker", config={})
+        runtimes = system.list_container_runtimes()
+        assert "docker" in runtimes
+        assert "podman" in runtimes
+
+
+    def test_sys_04_cli_controls_operations(self, cli):
+        """
+        SYS-04: CLI manages system operations
+        
+        Test: Run CLI workload start command
+        Expected: Successful exit code and confirmation
+        """
+        code, out, err = cli.run("workload", "start", "test-wl")
+        assert code == 0
+        assert "started" in out.lower()
+
+
+    def test_sys_05_gui_visualization(self, system, gui, sample_workload_name):
+        """
+        SYS-05: GUI workload visibility
+        
+        Test: Start workload then visualize via GUI
+        Expected: Running workload appears in GUI list
+        """
+        system.start_workload(sample_workload_name)
+        workloads = gui.list_workloads()
+        assert any(w["name"] == sample_workload_name for w in workloads)
+
+
+    def test_sys_06_agent_list_cli_gui(self, system, sample_agent_ids, cli, gui):
+        """
+        SYS-06: Agent visibility in CLI + GUI
+        
+        Test: List agents via both interfaces
+        Expected: Agent is visible everywhere
+        """
+        node_id, agent_id = sample_agent_ids
+        system.add_agent(node_id=node_id, agent_id=agent_id)
+
+        code, out, err = cli.run("agent", "list", "--output", "json")
+        assert code == 0
+        cli_agents = json.loads(out)["agents"]
+        assert any(a["id"] == agent_id for a in cli_agents)
+
+        gui_agents = gui.list_agents()
+        assert any(a["id"] == agent_id for a in gui_agents)
+
+
+    def test_sys_07_logs_and_status(self, system, cli, sample_workload_name):
+        """
+        SYS-07: Logs + status retrieval via CLI
+        
+        Test: Query logs and status of running workload
+        Expected: Success responses and non-empty logs
+        """
+        system.start_workload(sample_workload_name)
+
+        code, out, err = cli.run("workload", "status", sample_workload_name)
+        assert code == 0
+
+        code, out, err = cli.run("workload", "logs", sample_workload_name)
+        assert code == 0
+        assert out.strip() != ""
+
+
+    def test_sys_08_update_workload_config(self, system, sample_workload_name):
+        """
+        SYS-08: Remote workload configuration updates
+        
+        Test: Change interval + parameter on running workload
+        Expected: Config returned with updated values
+        """
+        system.start_workload(sample_workload_name)
+        updated = system.update_workload_config(sample_workload_name, interval=10)
+        assert updated["interval"] == 10
+
+
+    def test_sys_09_search_filter(self, system):
+        """
+        SYS-09: Search and filter
+        
+        Test: Filter by workload name
+        Expected: Matching results only
+        """
+        results = system.search(workload="test-wl")
+        assert all(r.get("workload") == "test-wl" for r in results)
+
+
+    def test_sys_10_startup_config(self, system, tmp_path):
+        """
+        SYS-10: Startup configuration file support
+        
+        Test: Load system using startup config
+        Expected: Defined workload is running
+        """
+        config = tmp_path / "startup.yaml"
+        config.write_text(
+            """
+            workloads:
+              - name: init-workload
+                interval: 5
+            """
+        )
+        system.load_startup_config(str(config))
+        status = system.get_workload_status("init-workload")
+        assert status["state"] == "running"
+
+
+    def test_sys_11_runtime_config_modification(self, system):
+        """
+        SYS-11: Modify system config at runtime
+        
+        Test: Change global config value
+        Expected: Updated config returned
+        """
+        key = "max_clients"
+        system.modify_runtime_config(key, 20)
+        assert system.get_runtime_config(key) == 20
+
+
+    def test_sys_12_restart_policies(self, system, sample_workload_name):
+        """
+        SYS-12: Retry + restart policies
+        
+        Test: on_failure restart triggers retry when workload fails
+        Expected: Error report exists after retry attempt
+        """
+        system.set_restart_policy(sample_workload_name, "on_failure")
+        system.induce_workload_failure(sample_workload_name)
+        report = system.get_last_error_report(sample_workload_name)
+        assert report is not None
+
+
+    def test_sys_13_startup_order(self, system):
+        """
+        SYS-13: Startup dependency order enforcement
+        
+        Test: Start system components
+        Expected: server → agent → dashboard order
+        """
+        system.start_server()
+        assert system.get_component_state("server") == "running"
+
+        system.start_agent()
+        assert system.get_component_state("agent") == "running"
+
+        system.start_dashboard()
+        assert system.get_component_state("dashboard") == "running"
+
+
+    def test_sys_14_grpc_communication(self, system):
+        """
+        SYS-14: gRPC communication protocol
+        
+        Test: Check channel info between server and agents
+        Expected: gRPC connection established
+        """
+        info = system.get_grpc_channel_info()
+        assert info["protocol"] == "gRPC"
+        assert info["connected"] is True
+
     def test_sys_11_schema_validation_integration(self):
         """
         SYS-11: Schema Validation Integration
